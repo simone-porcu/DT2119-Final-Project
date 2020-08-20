@@ -1,2 +1,3 @@
 data/timit/
 .idea/
+*__pycache__/
