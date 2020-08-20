@@ -30,7 +30,9 @@ if __name__ == '__main__':
     print_sorted_dictionary(train_phone_labels, sort_by='value', header='train mapping', footer='')
     print_sorted_dictionary(test_phone_labels, sort_by='value', header='test mapping', footer='')
 
-    info = path_to_info('timit/train/dr1/mwar0/sx415.wav')
+    path = os.path.join('timit', 'train', 'dr1', 'mwar0', 'sx415.wav')
+    info = path_to_info(path)
     print('utterance info:', info, end='\n\n')
 
-    (x_train, y_train), (x_test, y_test) = get_preprocessed_data(os.path.join(get_root_dir(), 'data', 'timit'))
+    (x_train, y_train), (x_test, y_test) = get_preprocessed_data(os.path.join(get_root_dir(), 'data', 'timit'),
+                                                                 context=5)

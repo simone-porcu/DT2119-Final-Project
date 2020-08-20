@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 from dualstudent.utils import get_root_dir
-from dualstudent.speech.feature_extraction import extract_features, extract_labels
+from dualstudent.speech.preprocess import extract_features, extract_labels, stack_acoustic_context, normalize
 from dualstudent.speech.sphere import load_audio
 
 WIN_LEN = 0.03
@@ -83,11 +83,12 @@ def _extract_labels(filepath, n_frames, phone_labels):
     return extract_labels(transcription, n_frames, WIN_LEN, WIN_SHIFT)
 
 
-def _load_and_preprocess_data(dataset_path, core_test=True, normalization='full'):
+def _preprocess_data(dataset_path, core_test=True, context=0, normalization='full'):
     if core_test:
         core_test_speakers = get_core_test_speakers()
     train_phone_labels = get_phone_mapping()[0]
 
+    # init lists
     x_train = []
     y_train = []
     x_test = []
@@ -95,6 +96,7 @@ def _load_and_preprocess_data(dataset_path, core_test=True, normalization='full'
 
     for root, dirs, files in os.walk(dataset_path):
         for file in files:
+            # get info
             filepath = os.path.join(root, file)
             info = path_to_info(filepath)
 
@@ -106,9 +108,8 @@ def _load_and_preprocess_data(dataset_path, core_test=True, normalization='full'
             if info['file_type'] != 'wav' or info['text_type'] == 'sa':
                 continue
 
-            print('processing ', filepath, '...', sep='', end=' ')
-
             # extract features
+            print('processing ', filepath, '...', sep='', end=' ')
             samples, sample_rate = load_audio(filepath)
             x = extract_features(samples, sample_rate, WIN_LEN, WIN_SHIFT, np.hamming)
 
@@ -125,32 +126,38 @@ def _load_and_preprocess_data(dataset_path, core_test=True, normalization='full'
                 y_test.append(y)
             else:
                 raise ValueError('TIMIT dataset contains an invalid path')
-
             print('done')
 
+    # lists -> numpy arrays
     x_train = np.concatenate(x_train)
     y_train = np.concatenate(y_train)
     x_test = np.concatenate(x_test)
     y_test = np.concatenate(y_test)
 
-    # TODO: normalization (here)
-    # TODO: tf.data.Dataset and stacking features (not here, in models/)
+    # stack features and normalize
+    stack_acoustic_context(x_train, context)
+    x_train, x_test = normalize(x_train, x_test, normalization)
 
     return (x_train, y_train), (x_test, y_test)
 
 
-def get_preprocessed_data(dataset_path, core_test=True, normalization='full'):
+def get_preprocessed_data(dataset_path, core_test=True, context=0, normalization='full'):
     """
-    Returns the preprocessed dataset as features (39 coefficients, MFCC + delta + delta-delta) and labels (integers).
+    Returns the preprocessed dataset as features (coefficients, MFCC + delta + delta-delta, possibly with acoustic
+    context) and labels (integers).
+
     The split in training and test sets is the recommended one (see timit/readme.doc and timit/doc/testset.doc).
 
     :param dataset_path: path to the dataset. Since the TIMIT dataset is protected by copyright, it is not distributed
         with the package.
     :param core_test: whether to use the core test set (see timit/doc/testset.doc) instead of the complete test set
+    :param context: how many features on the left and on the right to stack (acoustic context or dynamic features)
     :param normalization: type of normalization. Support for: 'full', 'speaker', 'utterance'
     :return: (x_train, y_train), (x_test, y_test)
     """
-    preprocessed_file = os.path.join(get_root_dir(), 'data', 'preprocessed_' + normalization + '_normalized_data.npz')
+    preprocessed_file = os.path.join(get_root_dir(), 'data', 'preprocessed_data' +
+                                     '_' + str(context) + '_context{}'.format(context) +
+                                     '_' + normalization + 'norm.npz')
     if os.path.exists(preprocessed_file):
         print(preprocessed_file, 'found, loading...', end=' ')
         with np.load(preprocessed_file) as preprocessed_data:
@@ -161,6 +168,6 @@ def get_preprocessed_data(dataset_path, core_test=True, normalization='full'):
         print('done')
     else:
         print(preprocessed_file, 'not found, starting to preprocess...')
-        (x_train, y_train), (x_test, y_test) = _load_and_preprocess_data(dataset_path, core_test, normalization)
+        (x_train, y_train), (x_test, y_test) = _preprocess_data(dataset_path, core_test, context, normalization)
         np.savez(preprocessed_file, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test)
     return (x_train, y_train), (x_test, y_test)

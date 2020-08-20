@@ -1,6 +1,7 @@
 import numpy as np
 import python_speech_features as pss
 from intervaltree import IntervalTree
+from sklearn.preprocessing import StandardScaler
 
 
 def extract_features(samples, sample_rate, win_len, win_shift, win_fun):
@@ -50,3 +51,41 @@ def extract_labels(transcription, n_frames, win_len, win_shift):
         labels[i] = aux.pop().data
         mid_point += win_shift
     return labels
+
+
+def stack_acoustic_context(features, context):
+    """
+    For each feature vector (frame), stack feature vectors on the left and on the right to get an acoustic context
+    (dynamic features).
+
+    :param features: original features, numpy array of shape (n_frames, n_features)
+    :param context: how many features on the left and on the right to stack (acoustic context or dynamic features)
+    :return: features with acoustic context, numpy array of shape (n_frames, context*n_features)
+    """
+    if context == 0:
+        return features
+    elif context < 0:
+        raise ValueError('negative acoustic context')
+
+    length = features.shape[0]
+    idx_list = list(range(length))
+    idx_list = idx_list[1:1+context][::-1] + idx_list + idx_list[-1-context:-1][::-1]
+    features = [features[idx_list[i:i+1+2*context]].reshape(-1) for i in range(length)]
+    return np.array(features)
+
+
+def normalize(x_train, x_test, mode='full'):
+    if mode == 'full':
+        ss = StandardScaler()
+        ss.fit(x_train)
+        x_train = ss.transform(x_train)
+        x_test = ss.transform(x_test)
+    elif mode == 'speaker':
+        # TODO
+        raise NotImplementedError(mode + ' not yet supported')
+    elif mode == 'utterance':
+        # TODO
+        raise NotImplementedError(mode + ' not yet supported')
+    else:
+        raise ValueError('invalid normalization mode')
+    return x_train, x_test
