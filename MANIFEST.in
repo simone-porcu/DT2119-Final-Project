@@ -3,4 +3,4 @@ include LICENSE
 recursive-include data *
 recursive-include docs *
 
-recursive-exclude data timit '*.npz'
+recursive-exclude data timit *.npz

@@ -35,4 +35,8 @@ if __name__ == '__main__':
     print('utterance info:', info, end='\n\n')
 
     (x_train, y_train), (x_test, y_test) = get_preprocessed_data(os.path.join(get_root_dir(), 'data', 'timit'),
-                                                                 context=5)
+                                                                 context=0)
+    print('x_train shape:', x_train.shape)
+    print('y_train shape:', y_train.shape)
+    print('x_test shape:', x_test.shape)
+    print('y_test shape:', y_test.shape)

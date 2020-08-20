@@ -83,7 +83,7 @@ def _extract_labels(filepath, n_frames, phone_labels):
     return extract_labels(transcription, n_frames, WIN_LEN, WIN_SHIFT)
 
 
-def _preprocess_data(dataset_path, core_test=True, context=0, normalization='full'):
+def _preprocess_data(dataset_path, core_test, context, normalization):
     if core_test:
         core_test_speakers = get_core_test_speakers()
     train_phone_labels = get_phone_mapping()[0]
@@ -169,5 +169,7 @@ def get_preprocessed_data(dataset_path, core_test=True, context=0, normalization
     else:
         print(preprocessed_file, 'not found, starting to preprocess...')
         (x_train, y_train), (x_test, y_test) = _preprocess_data(dataset_path, core_test, context, normalization)
+        print('saving ', preprocessed_file, '...', sep='', end=' ')
         np.savez(preprocessed_file, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test)
+        print('done')
     return (x_train, y_train), (x_test, y_test)
