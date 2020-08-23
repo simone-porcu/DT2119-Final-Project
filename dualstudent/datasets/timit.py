@@ -147,8 +147,8 @@ def load_data(dataset_path, core_test=True, force_preprocess=False):
 
     The split in training and test sets is the recommended one (see timit/readme.doc and timit/doc/testset.doc).
 
-    :param dataset_path: path to the dataset. Since the TIMIT dataset is protected by copyright, it is not distributed
-        with the package.
+    :param dataset_path: Path object containing the path to the dataset. Since the TIMIT dataset is protected by
+        copyright, it is not distributed with the package.
     :param core_test: whether to use the core test set (see timit/doc/testset.doc) instead of the complete test set
     :param force_preprocess: force to pre-process again, even if saved data can be loaded
     :return: dictionary {'train': train_set, 'test': test_set}, where train_set and test_set are numpy arrays of
