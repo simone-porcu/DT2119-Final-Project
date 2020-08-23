@@ -28,6 +28,16 @@ class PreprocessTestCase(unittest.TestCase):
         self.assertEqual(len(set(labels)), 25)
         self.assertEqual(len(labels), 240)
 
+    def test_stack_acoustic_context(self):
+        features = np.arange(6)
+        features = stack_acoustic_context(features, 5)
+        self.assertListEqual(list(features[0]), [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5])
+        self.assertListEqual(list(features[1]), [4, 3, 2, 1, 0, 1, 2, 3, 4, 5, 4])
+        self.assertListEqual(list(features[2]), [3, 2, 1, 0, 1, 2, 3, 4, 5, 4, 3])
+        self.assertListEqual(list(features[3]), [2, 1, 0, 1, 2, 3, 4, 5, 4, 3, 2])
+        self.assertListEqual(list(features[4]), [1, 0, 1, 2, 3, 4, 5, 4, 3, 2, 1])
+        self.assertListEqual(list(features[5]), [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0])
+
     def test_normalize(self):
         dataset_path = get_root_dir() / 'data' / 'timit'
         train_set, test_set = load_data(dataset_path)

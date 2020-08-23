@@ -64,6 +64,8 @@ def stack_acoustic_context(features, n):
     :param n: how many features on the left and on the right to stack (acoustic context or dynamic features)
     :return: features with acoustic context, numpy array of shape (n_frames, context*n_features)
     """
+    if n < 0 or n > features.shape[0]:
+        raise ValueError('Invalid context size')
     if n == 0:
         return features
     length = features.shape[0]
