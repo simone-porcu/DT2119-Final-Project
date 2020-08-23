@@ -1,46 +1,60 @@
-# TODO: see https://docs.python-guide.org/writing/tests/
-
+import unittest
 from dualstudent.datasets.timit import *
 from dualstudent.utils import get_root_dir
 
 
-def print_sorted_dictionary(dictionary, sort_by='key', header=None, footer=None):
-    if header is not None:
-        print(header)
+class TimitTestCase(unittest.TestCase):
+    def test_get_core_test_speakers(self):
+        core_test_speakers = get_core_test_speakers()
+        self.assertEqual(len(core_test_speakers.keys()), 8)
+        self.assertEqual(sum([len(speakers) for speakers in core_test_speakers.values()]), 24)
 
-    if sort_by == 'key':
-        key = 0
-    elif sort_by == 'value':
-        key = 1
-    else:
-        raise ValueError('invalid sort_by argument')
+    def test_get_phone_mapping(self):
+        phone_labels, evaluation_mapping = get_phone_mapping()
+        self.assertEqual(len(set(phone_labels.keys())), 60)
+        self.assertEqual(len(set(phone_labels.values())), 48)
+        self.assertEqual(len(set(evaluation_mapping.keys())), 48)
+        self.assertEqual(len(set(evaluation_mapping.values())), 39)
+        self.assertListEqual(sorted(set(phone_labels.values())), list(range(48)))
+        self.assertListEqual(sorted(evaluation_mapping.keys()), list(range(48)))
+        self.assertListEqual(sorted(set(evaluation_mapping.values())), list(range(39)))
 
-    for k, v in sorted(dictionary.items(), key=lambda e: e[key]):
-        print(k, '=>', v)
+    def test_path_to_info(self):
+        path = get_root_dir() / 'data' / 'timit' / 'train' / 'dr1' / 'mwar0' / 'sx415.wav'
+        info = path_to_info(path)
+        self.assertEqual(info['usage'], 'train')
+        self.assertEqual(info['dialect'], 'dr1')
+        self.assertEqual(info['sex'], 'm')
+        self.assertEqual(info['speaker_id'], 'war0')
+        self.assertEqual(info['text_type'], 'sx')
+        self.assertEqual(info['sentence_number'], 415)
+        self.assertEqual(info['file_type'], '.wav')
 
-    if footer is not None:
-        print(footer)
+    def test_load_data(self):
+        dataset_path = get_root_dir() / 'data' / 'timit'
+        for force_preprocess in [True, False]:
+            train_set, test_set = load_data(dataset_path, force_preprocess=force_preprocess)
+
+            # number of utterances
+            self.assertEqual(len(train_set), 3696)
+            self.assertEqual(len(test_set), 192)
+
+            # number of speakers
+            self.assertEqual(len({utterance['speaker_id'] for utterance in train_set}), 462)
+            self.assertEqual(len({utterance['speaker_id'] for utterance in test_set}), 24)
+
+            # number of frames
+            self.assertEqual(sum([len(utterance['features']) for utterance in train_set]), 1104675)
+            self.assertEqual(sum([len(utterance['features']) for utterance in test_set]), 56623)
+            self.assertEqual(sum([len(utterance['labels']) for utterance in train_set]), 1104675)
+            self.assertEqual(sum([len(utterance['labels']) for utterance in test_set]), 56623)
+
+            # shape of features and labels
+            for utterance in np.concatenate((train_set, test_set)):
+                self.assertEqual(len(utterance['features'].shape), 2)
+                self.assertEqual(len(utterance['labels'].shape), 1)
+                self.assertEqual(utterance['features'].shape[1], 39)
 
 
 if __name__ == '__main__':
-    core_test_speakers = get_core_test_speakers()
-    print_sorted_dictionary(core_test_speakers, header='Core test speakers', footer='')
-
-    # get_phone_mapping()
-    train_phone_labels, test_phone_labels = get_phone_mapping()
-    print_sorted_dictionary(train_phone_labels, sort_by='value', header='Train phone mapping', footer='')
-    print_sorted_dictionary(test_phone_labels, sort_by='value', header='Test phone mapping', footer='')
-
-    # path_to_info()
-    path = get_root_dir() / 'data' / 'timit' / 'train' / 'dr1' / 'mwar0' / 'sx415.wav'
-    info = path_to_info(path)
-    print('Utterance info:', info, end='\n\n')
-
-    # load_data()
-    dataset = load_data(get_root_dir() / 'data' / 'timit')
-    print('# training utterances:', len(dataset['train']))
-    print('# test utterances:', len(dataset['test']))
-    print('# train speakers', len({u['speaker_id'] for u in dataset['train']}))
-    print('# test speakers', len({u['speaker_id'] for u in dataset['test']}))
-    print('# training frames:', sum([len(u['features']) for u in dataset['train']]))
-    print('# test frames:', sum([len(u['features']) for u in dataset['test']]))
+    unittest.main()
