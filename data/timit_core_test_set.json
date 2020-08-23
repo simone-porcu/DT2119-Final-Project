@@ -1,0 +1,42 @@
+{
+    "dr1": [
+        "dab0",
+        "wbt0",
+        "elc0"
+    ],
+    "dr2": [
+        "tas1",
+        "wew0",
+        "pas0"
+    ],
+    "dr3": [
+        "jmp0",
+        "lnt0",
+        "pkt0"
+    ],
+    "dr4": [
+        "lll0",
+        "tls0",
+        "jlm0"
+    ],
+    "dr5": [
+        "bpm0",
+        "klt0",
+        "nlp0"
+    ],
+    "dr6": [
+        "cmj0",
+        "jdh0",
+        "mgd0"
+    ],
+    "dr7": [
+        "grt0",
+        "njm0",
+        "dhc0"
+    ],
+    "dr8": [
+        "jln0",
+        "pam0",
+        "mld0"
+    ]
+}
