@@ -1,4 +1,4 @@
-data/timit/
-data/*.npz
-.idea/
-*__pycache__/
+/data/timit/
+/data/*.npz
+/.idea/
+__pycache__/
