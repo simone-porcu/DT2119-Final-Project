@@ -1,6 +1,5 @@
 import argparse
 import tensorflow as tf
-from pathlib import Path
 from dualstudent.datasets import timit
 from dualstudent.speech.preprocess import normalize
 
