@@ -27,10 +27,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train dual student.')
     parser.add_argument('--dataset', type=str, help='Path to TIMIT dataset', required=True)
     args = parser.parse_args()
-    dataset_path = Path(args.dataset)
 
     # load dataset
-    train_set, test_set = timit.load_data(dataset_path)
+    train_set, test_set = timit.load_data(args.dataset)
     train_set, test_set = normalize(train_set, test_set)
 
     # define input pipeline
