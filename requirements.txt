@@ -1,0 +1,8 @@
+setuptools~=49.6.0
+numpy~=1.19.1
+pysndfile~=1.4.3
+tensorflow~=2.2.0
+intervaltree~=3.1.0
+pandas~=1.1.0
+python_speech_features~=0.6
+scikit-learn~=0.23.1

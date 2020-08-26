@@ -1,0 +1,4 @@
+/data/timit/
+/data/*.npz
+/.idea/
+__pycache__/
