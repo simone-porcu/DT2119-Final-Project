@@ -2,7 +2,8 @@ import json
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from dualstudent.utils import get_root_dir
+from tqdm import tqdm
+from dualstudent import get_root_dir
 from dualstudent.speech.preprocess import extract_features, extract_labels
 from dualstudent.speech.sphere import load_audio
 from dualstudent.speech.utils import load_transcription, get_number_of_frames
@@ -97,46 +98,48 @@ def _preprocess_data(dataset_path, core_test=False):
 
     # prepare dataset
     dataset = []
-    for filepath in dataset_path.glob('**/*.wav'):
-        info = path_to_info(filepath)
+    file_paths = list(dataset_path.glob('**/*.wav'))
+    with tqdm(total=len(file_paths)) as bar:
+        bar.set_description('Processing {}'.format(dataset_path))
+        for filepath in file_paths:
+            bar.update()
+            info = path_to_info(filepath)
 
-        # check sentence and speaker
-        if info['text_type'] == 'sa':
-            continue
-        if core_test and not info['speaker_id'] in core_test_speakers[info['dialect']]:
-            continue
+            # check sentence and speaker
+            if info['text_type'] == 'sa':
+                continue
+            if core_test and not info['speaker_id'] in core_test_speakers[info['dialect']]:
+                continue
 
-        # load audio and transcription
-        print('Processing ', filepath, '...', sep='', end=' ')
-        samples, sample_rate = load_audio(filepath)
-        filepath = filepath.with_suffix('.phn')
-        transcription = load_transcription(filepath)
+            # load audio and transcription
+            samples, sample_rate = load_audio(filepath)
+            filepath = filepath.with_suffix('.phn')
+            transcription = load_transcription(filepath)
 
-        # drop leading and trailing samples not in the transcription
-        samples = samples[transcription[0][0]:transcription[-1][1]]
+            # drop leading and trailing samples not in the transcription
+            samples = samples[transcription[0][0]:transcription[-1][1]]
 
-        # extract features and labels
-        features = extract_features(samples, sample_rate, WIN_LEN, WIN_SHIFT)
-        n_frames = get_number_of_frames(samples.shape[0], sample_rate, WIN_LEN, WIN_SHIFT)
-        assert features.shape[0] - n_frames <= 1
-        features[:n_frames]     # the last frame may have the window not fully inside, we drop it
-        labels = extract_labels(transcription, sample_rate, n_frames, WIN_LEN, WIN_SHIFT)
+            # extract features and labels
+            features = extract_features(samples, sample_rate, WIN_LEN, WIN_SHIFT)
+            n_frames = get_number_of_frames(samples.shape[0], sample_rate, WIN_LEN, WIN_SHIFT)
+            assert features.shape[0] - n_frames <= 1
+            features[:n_frames]     # the last frame may have the window not fully inside, we drop it
+            labels = extract_labels(transcription, sample_rate, n_frames, WIN_LEN, WIN_SHIFT)
 
-        # drop frames with ignored phones as target (glottal stop /q/)
-        labels = np.array([(phone_labels[label] if label in phone_labels else -1) for label in labels])
-        valid_idx = np.where(labels != -1)[0]
-        features = features[valid_idx]
-        labels = labels[valid_idx]
-        print('done')
+            # drop frames with ignored phones as target (glottal stop /q/)
+            labels = np.array([(phone_labels[label] if label in phone_labels else -1) for label in labels])
+            valid_idx = np.where(labels != -1)[0]
+            features = features[valid_idx]
+            labels = labels[valid_idx]
 
-        # add to dataset
-        dataset.append({
-            'dialect': info['dialect'],
-            'sex': info['sex'],
-            'speaker_id': info['speaker_id'],
-            'features': features,
-            'labels': labels
-        })
+            # add to dataset
+            dataset.append({
+                'dialect': info['dialect'],
+                'sex': info['sex'],
+                'speaker_id': info['speaker_id'],
+                'features': features,
+                'labels': labels
+            })
 
     return np.array(dataset)
 
@@ -167,7 +170,6 @@ def load_data(dataset_path, core_test=True, force_preprocess=False):
         train_set = np.load(filepath, allow_pickle=True)['train_set']
         print('done')
     else:
-        print('Preparing training set...')
         train_set = _preprocess_data(dataset_path / 'train')
         np.savez(filepath, train_set=train_set)
 
@@ -178,7 +180,6 @@ def load_data(dataset_path, core_test=True, force_preprocess=False):
         test_set = np.load(filepath, allow_pickle=True)['test_set']
         print('done')
     else:
-        print('Preparing test set...')
         test_set = _preprocess_data(dataset_path / 'test', core_test)
         np.savez(filepath, test_set=test_set)
 

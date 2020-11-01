@@ -1,9 +1,9 @@
 import unittest
+from dualstudent import get_root_dir
 from dualstudent.speech.preprocess import *
 from dualstudent.speech.sphere import load_audio
 from dualstudent.speech.utils import load_transcription
 from dualstudent.datasets.timit import load_data, get_number_of_frames
-from dualstudent.utils import get_root_dir
 
 
 class PreprocessTestCase(unittest.TestCase):

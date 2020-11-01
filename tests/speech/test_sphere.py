@@ -1,6 +1,6 @@
 import unittest
+from dualstudent import get_root_dir
 from dualstudent.speech.sphere import *
-from dualstudent.utils import get_root_dir
 
 
 class SphereTestCase(unittest.TestCase):

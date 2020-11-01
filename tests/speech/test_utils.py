@@ -1,6 +1,6 @@
 import unittest
+from dualstudent import get_root_dir
 from dualstudent.speech.utils import *
-from dualstudent.utils import get_root_dir
 
 
 class UtilsTestCase(unittest.TestCase):
