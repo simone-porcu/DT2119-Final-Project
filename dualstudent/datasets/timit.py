@@ -4,9 +4,9 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from dualstudent import get_root_dir
-from dualstudent.speech.preprocess import extract_features, extract_labels
-from dualstudent.speech.sphere import load_audio
-from dualstudent.speech.utils import load_transcription, get_number_of_frames
+from dualstudent.speech import extract_features, extract_labels
+from dualstudent.speech import load_sphere
+from dualstudent.speech import load_transcription, get_number_of_frames
 
 WIN_LEN = 0.03
 WIN_SHIFT = 0.01
@@ -112,7 +112,7 @@ def _preprocess_data(dataset_path, core_test=False):
                 continue
 
             # load audio and transcription
-            samples, sample_rate = load_audio(filepath)
+            samples, sample_rate = load_sphere(filepath)
             filepath = filepath.with_suffix('.phn')
             transcription = load_transcription(filepath)
 
