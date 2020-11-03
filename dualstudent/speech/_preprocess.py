@@ -75,7 +75,7 @@ def stack_acoustic_context(features, n):
     return np.array(features)
 
 
-def normalize(train_set, test_set, mode='full'):
+def normalize(train_set, test_set=None, mode='full'):
     """
     Normalizes the dataset according to the specified mode.
 
@@ -95,8 +95,9 @@ def normalize(train_set, test_set, mode='full'):
         # normalize
         for utterance in train_set:
             utterance['features'] = ss.transform(utterance['features'])
-        for utterance in test_set:
-            utterance['features'] = ss.transform(utterance['features'])
+        if test_set is not None:
+            for utterance in test_set:
+                utterance['features'] = ss.transform(utterance['features'])
 
     elif mode == 'speaker':
         # TODO
@@ -107,4 +108,47 @@ def normalize(train_set, test_set, mode='full'):
     else:
         raise ValueError('Invalid normalization mode')
 
-    return train_set, test_set
+    return train_set if test_set is None else (train_set, test_set)
+
+
+def unlabel(x_train, y_train, percentage):
+    """
+    Removes the labels from a percentage of the training samples. The percentage is computed at sample-level, not
+    at utterance-level.
+
+    :param x_train: np.array of shape (n_utterance, sequence_length, n_features), zero-padded training frames
+    :param y_train: np.array of shape (n_utterances, sequence_length, n_classes), one-hot encoded zero-padded labels
+    :param percentage: percentage of samples to unlabel
+    :return: tuple (x_labeled, x_unlabeled, y), where y are the labels for x_labeled (x_unlabeled has no labels)
+    """
+    total = int(y_train.sum())              # by summing we ignore labels encoded as all 0s (padding)
+    total_unlabeled = int(round((total * percentage)))
+    shuffled_idx = np.arange(y_train.shape[0])
+    np.random.shuffle(shuffled_idx)
+
+    # get unlabeled
+    x_unlabeled = []
+    i = 0
+    n_unlabeled = 0
+    while n_unlabeled < total_unlabeled:
+        idx = shuffled_idx[i]               # random index of utterance chosen to unlabel
+        n_samples = y_train[idx].sum()
+        x_unlabeled.append(x_train[idx])
+        n_unlabeled += n_samples
+        i += 1
+
+    # get labeled
+    x_labeled = []
+    y = []
+    while i < len(y_train):
+        idx = shuffled_idx[i]
+        x_labeled.append(x_train[idx])
+        y.append(y_train[idx])
+        i += 1
+
+    # convert to numpy arrays
+    x_labeled = np.array(x_labeled)
+    x_unlabeled = np.array(x_unlabeled)
+    y = np.array(y)
+
+    return x_labeled, x_unlabeled, y
