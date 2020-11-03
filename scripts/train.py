@@ -23,7 +23,7 @@ def get_command_line_arguments():
 def main():
     # command-line arguments
     args = get_command_line_arguments()
-    dataset_path = Path(args.data)
+    dataset_path = args.data
     model_path = Path(args.model)
 
     # prepare paths

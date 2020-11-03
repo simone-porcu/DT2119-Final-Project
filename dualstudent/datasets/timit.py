@@ -41,7 +41,7 @@ def get_core_test_speakers():
 
     :return: dictionary (dialect -> list of speaker_id)
     """
-    filepath = get_root_dir() / 'data' / 'timit_core_test_set.json'
+    filepath = get_root_dir() / 'data' / 'timit_core_test.json'
     with filepath.open() as json_file:
         return json.load(json_file)
 
