@@ -51,8 +51,7 @@ class PreprocessTestCase(unittest.TestCase):
             self.assertAlmostEqual(mean[i], 0)
             self.assertAlmostEqual(var[i], 1)
 
-        self.assertRaises(NotImplementedError, normalize, train_set, test_set, mode='speaker')
-        self.assertRaises(NotImplementedError, normalize, train_set, test_set, mode='utterance')
+        # TODO: test other normalization modes
 
 
 if __name__ == '__main__':

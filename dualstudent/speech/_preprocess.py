@@ -103,7 +103,6 @@ def normalize(train_set, test_set=None, mode='full'):
 
     elif mode == 'speaker':
         for index, dataset in enumerate([train_set, test_set]):
-
             # split the set according to the speaker
             set_splitted = []
             grouper = itemgetter("speaker_id")
