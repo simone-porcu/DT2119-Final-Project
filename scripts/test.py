@@ -32,12 +32,12 @@ def main():
     # pad sequences
     padding_value = np.inf
     n_classes = len(timit.get_phone_mapping()[1])
-    x_train = pad_sequences(x_test, padding='post', value=padding_value, dtype='float32')
-    y_train = pad_sequences(y_test, padding='post', value=n_classes)
-    n_features = x_train.shape[-1]
+    x_test = pad_sequences(x_test, padding='post', value=padding_value, dtype='float32')
+    y_test = pad_sequences(y_test, padding='post', value=n_classes)
+    n_features = x_test.shape[-1]
 
     # one-hot encode labels
-    y_train = tf.one_hot(y_train, depth=n_classes).numpy()
+    y_test = tf.one_hot(y_test, depth=n_classes).numpy()
 
     # predict with model
     model = DualStudent(n_classes, n_features, padding_value=padding_value, student_version='mono_directional',

@@ -37,11 +37,27 @@ def main():
 
     # load dataset
     train_set, _ = timit.load_data(dataset_path)
-    train_set = normalize(train_set)
+
+    # split training in training and validation sets (version 1: unique validation and training utterances)
+    # train_set, valid_set, complete_valid_set = timit.split_val(train_set)
+    # print(f'original train_set dimension: \t {train_set.shape}')
+    # print(f'splitted train_set dimension: \t\t {train_set.shape}')
+    # print(f'valid: \t\t {valid_set.shape}')
+    # print(f'complete_valid:  {complete_valid_set.shape}')
+
+    # split training in training and validation sets (version 2: random validation)
+    train_set, val_set = timit.split_val_random(train_set)
+    print(train_set.shape)
+    print(val_set.shape)
+
+    # normalize dataset
+    train_set, val_set = normalize(train_set, val_set)
+
+    # take just features and labels
     x_train = np.array([u['features'] for u in train_set])
     y_train = np.array([u['labels'] for u in train_set])
-
-    # TODO: split in training + validation set
+    x_val = np.array([u['features'] for u in val_set])
+    y_val = np.array([u['labels'] for u in val_set])
 
     # pad sequences
     padding_value = np.inf
@@ -59,7 +75,7 @@ def main():
     # train model
     model = DualStudent(n_classes, n_features, padding_value=padding_value, student_version='mono_directional', n_layers=2, n_units=3)  # TODO: modify
     model.compile(optimizer=SGD(learning_rate=0.01))        # TODO: set momentum
-    model.train(x_labeled, x_unlabeled, y, shuffle=False)   # TODO: remove shuffle=False
+    model.train(x_labeled, x_unlabeled, y, x_val=x_val, y_val=y_val, shuffle=False)   # TODO: remove shuffle=False
     model.save_weights(model_path)
 
 
