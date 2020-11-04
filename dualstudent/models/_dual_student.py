@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
@@ -46,7 +47,7 @@ class DualStudent(Model):
         # training losses
         self._cce = CategoricalCrossentropy()
         self._mse = MeanSquaredError()
-        self._loss1 = Mean(name='loss1')    # TODO: why mean?
+        self._loss1 = Mean(name='loss1')  # TODO: why mean?
         self._loss2 = Mean(name='loss2')
 
         # compose students
@@ -90,7 +91,7 @@ class DualStudent(Model):
         else:
             return self.students[student](inputs)
 
-    def train(self, x_labeled, x_unlabeled, y, n_epochs=1, batch_size=32, shuffle=True):
+    def train(self, x_labeled, x_unlabeled, y, x_val=None, y_val=None, n_epochs=1, batch_size=32, shuffle=True):
         unlabeled_batch_size = int(len(x_unlabeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
         labeled_batch_size = batch_size - unlabeled_batch_size
         n_batches = int(len(x_unlabeled) / unlabeled_batch_size)
@@ -108,12 +109,15 @@ class DualStudent(Model):
                 y_batch = y[i * labeled_batch_size:(i + 1) * labeled_batch_size]
                 x_unlabeled_batch = x_unlabeled[i * unlabeled_batch_size:(i + 1) * unlabeled_batch_size]
 
-                self.train_step(x_labeled_batch, x_unlabeled_batch, y_batch)
+                L1, L2 = self.train_step(x_labeled_batch, x_unlabeled_batch, y_batch)
+            # this is not the loss for the whole epoch it is just to test if it works
+            print("epoch loss", L1, L2)
 
-            # self.test_step(val_x, val_y)  # TODO
+            # self.test_step(x_val, y_val)  # TODO
 
     # @tf.function
     def train_step(self, x_labeled, x_unlabeled, y):
+        hej = time.time()
         # TODO: cross-batch statefulness? one update for 758 samples will be slow... maybe we have to split the sequences in sub-sequences of 20 samples
 
         # noisy augmented batches (TODO: improvement with data augmentation instead of noise)
@@ -126,12 +130,14 @@ class DualStudent(Model):
             # predict augmented labeled samples (for classification constraint)
             prob1_labeled = self.student1(B1_labeled, training=True)
             prob2_labeled = self.student2(B2_labeled, training=True)
+            # self.student1.summary()
+            # print("aslkdjaslkdj", prob1_labeled)
 
             # predict augmented unlabeled samples (for consistency and stabilization constraints)
             prob1_unlabeled_B1 = self.student1(B1_unlabeled, training=True)
             prob1_unlabeled_B2 = self.student1(B2_unlabeled, training=True)
-            prob2_unlabeled_B1 = self.student1(B1_unlabeled, training=True)
-            prob2_unlabeled_B2 = self.student1(B2_unlabeled, training=True)
+            prob2_unlabeled_B1 = self.student2(B1_unlabeled, training=True)
+            prob2_unlabeled_B2 = self.student2(B2_unlabeled, training=True)
 
             # compute classification losses
             L1_cls = self._cce(y, prob1_labeled)
@@ -165,8 +171,10 @@ class DualStudent(Model):
             epsilon2 = MSE(prob2_unlabeled_B1[R12], prob2_unlabeled_B2[R12])
 
             # compute stabilization losses
-            L1_sta = self._mse(prob1_unlabeled_B1[R12][epsilon1 > epsilon2], prob2_unlabeled_B1[R12][epsilon1 > epsilon2])
-            L2_sta = self._mse(prob1_unlabeled_B2[R12][epsilon1 < epsilon2], prob2_unlabeled_B2[R12][epsilon1 < epsilon2])
+            L1_sta = self._mse(prob1_unlabeled_B1[R12][epsilon1 > epsilon2],
+                               prob2_unlabeled_B1[R12][epsilon1 > epsilon2])
+            L2_sta = self._mse(prob1_unlabeled_B2[R12][epsilon1 < epsilon2],
+                               prob2_unlabeled_B2[R12][epsilon1 < epsilon2])
 
             L1_sta += self._mse(prob1_unlabeled_B1[tf.logical_and(tf.equal(R1, False), tf.equal(R2, True))],
                                 prob2_unlabeled_B1[tf.logical_and(tf.equal(R1, False), tf.equal(R2, True))])
@@ -184,10 +192,12 @@ class DualStudent(Model):
         del tape  # to release memory (persistent tape)
 
         # update metrics
-        self._loss1.update_state(L1)
-        self._loss2.update_state(L2)
+        # self._loss1.update_state(L1)
+        # self._loss2.update_state(L2)
 
-        print('loss1', L1, 'loss2', L2)
+        # print('loss1', L1, 'loss2', L2)
+        print("tiden är:", time.time() - hej)
+        return L1, L2
 
     @tf.function
     def test_step(self, data):
