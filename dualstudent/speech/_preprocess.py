@@ -2,6 +2,8 @@ import numpy as np
 import python_speech_features as pss
 from intervaltree import IntervalTree
 from sklearn.preprocessing import StandardScaler
+from operator import itemgetter      # for speaker normalization
+from itertools import groupby        # for speaker normalization
 
 
 def extract_features(samples, sample_rate, win_len, win_shift, win_fun=np.hamming):
@@ -100,15 +102,47 @@ def normalize(train_set, test_set=None, mode='full'):
                 utterance['features'] = ss.transform(utterance['features'])
 
     elif mode == 'speaker':
-        # TODO
-        raise NotImplementedError('Normalization mode ' + mode + ' not yet supported')
+        for index, dataset in enumerate([train_set, test_set]):
+
+            # split the set according to the speaker
+            set_splitted = []
+            grouper = itemgetter("speaker_id")
+            for _, v in groupby(dataset, grouper):
+                set_splitted.append(list(v))  # list of lists of dict, each sublist represent a speaker
+
+            for speaker_set in set_splitted:
+                # fit scaler
+                x_train = np.concatenate([utterance['features'] for utterance in speaker_set])
+                ss = StandardScaler()
+                ss.fit(x_train)
+
+                # normalize
+                for utterance in speaker_set:
+                    utterance['features'] = ss.transform(utterance['features'])
+
+            # from the normalized list of lists recover a single list containing all the utterances
+            single_list = lambda l: [item for sublist in l for item in sublist]
+
+            if index == 0:
+                train_set = np.array(single_list(set_splitted))
+            else:
+                test_set = np.array(single_list(set_splitted))
+
     elif mode == 'utterance':
-        # TODO
-        raise NotImplementedError('Normalization mode ' + mode + ' not yet supported')
+        for dataset in [train_set, test_set]:
+            for utterance in dataset:
+                # fit scaler
+                x_train = utterance['features']
+                ss = StandardScaler()
+                ss.fit(x_train)
+
+                # normalize
+                utterance['features'] = ss.transform(utterance['features'])
+
     else:
         raise ValueError('Invalid normalization mode')
 
-    return train_set if test_set is None else (train_set, test_set)
+    return train_set if test_set is None else train_set, test_set
 
 
 def unlabel(x_train, y_train, percentage):

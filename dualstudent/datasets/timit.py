@@ -1,6 +1,8 @@
+import os
 import json
 import pandas as pd
 import numpy as np
+import random
 from pathlib import Path
 from tqdm import tqdm
 from dualstudent import get_root_dir
@@ -184,3 +186,153 @@ def load_data(dataset_path, core_test=True, force_preprocess=False):
         np.savez(filepath, test_set=test_set)
 
     return train_set, test_set
+
+
+def split_val(dataset):
+    """
+    Split dataset in training and validation set.
+    Create a validation set of unique sentences by using the table in spkrinfo_spkrsent.txt .
+    There is no overlap of sentences in validion, and between train and validation.
+    Complete validation contains all the speakers which say a sentence also said by someone in
+    the validation set. Complete validation does not include the validatio.
+    For further details, visit documentation in testset.doc and refers to spkrinfo_spkrsent.txt .
+    :param dataset: dataset to be processed. np.array of dictionaries {‘dialect’,‘sex’,‘speaker_id’,‘features’,‘labels’}
+    :return: (train, valid, complete_valid) in the same format of dataset
+    """
+    doc_path = get_root_dir() / 'data' / 'spkrinfo_spkrsent.txt'
+
+    # shuffe data
+    with open(doc_path, 'r') as source:
+        data = [(random.random(), line) for line in source]
+    data.sort()
+
+    doc_path = doc_path.parent / (doc_path.stem + '_shuffled.txt')
+
+    with open(doc_path, 'w') as target:
+        for _, line in data:
+            target.write(line)
+
+    with open(doc_path) as f:
+        next(f)
+        next(f)
+        drs = [[2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [1, 1]]  # [male, female] for each dialect
+        new_speakers = []  # unique speakers
+        sentence_ids = []  # unique speakers sentences
+
+        for line in f:
+            columns = line.split()
+            condition = (not columns[4] in sentence_ids) and (not columns[5] in sentence_ids) and (
+                not columns[6] in sentence_ids) and (not columns[7] in sentence_ids) and (
+                            not columns[8] in sentence_ids)
+            if columns[3] == 'TRN' and condition:  # never seen a speaker saying this sentence
+                if drs[int(columns[2]) - 1][0] != 0 and columns[1] == 'M':  # if males is not filled
+                    sentence_ids.extend(
+                        [columns[4], columns[5], columns[6], columns[7], columns[8], columns[9], columns[10],
+                         columns[11]])
+                    new_speakers.append(columns[0])
+                    drs[int(columns[2]) - 1][0] -= 1
+
+                elif (drs[int(columns[2]) - 1][1] != 0) and columns[1] == 'F':
+                    sentence_ids.extend(
+                        [columns[4], columns[5], columns[6], columns[7], columns[8], columns[9], columns[10],
+                         columns[11]])
+                    new_speakers.append(columns[0])
+                    drs[int(columns[2]) - 1][1] -= 1
+
+    with open(doc_path) as f:
+        next(f)
+        next(f)
+        pair_speakers = []  # unique speakers pairs (for the complete_valid_set)
+        pair_sentence_ids = []  # unique speakers pairs sentences (for the complete_valid_set)
+
+        for line in f:
+            columns = line.split()
+            condition = (not columns[4] in sentence_ids) and (not columns[5] in sentence_ids) and (
+                not columns[6] in sentence_ids) and (not columns[7] in sentence_ids) and (
+                            not columns[8] in sentence_ids)
+            if ((columns[3] == 'TRN') and not condition):
+                pair_speakers.append(columns[0])
+                pair_sentence_ids.extend(
+                    [columns[4], columns[5], columns[6], columns[7], columns[8], columns[9], columns[10], columns[11]])
+
+    print(f"# of speakers: {len(new_speakers)}")
+    print(f"# of sentences: {len(sentence_ids)}")
+    print(f"# of pair_speakers: {len(pair_speakers)}")
+    print(f"# of pair_sentences: {len(pair_sentence_ids)}")
+
+    valid = []
+    train = []
+    complete_valid = []
+    new_speakers = [x.lower() for x in new_speakers]
+    pair_speakers = [x.lower() for x in pair_speakers]
+
+    for utterance in dataset:
+        if utterance['speaker_id'] in new_speakers:
+            valid.append(utterance)
+        if utterance['speaker_id'] in pair_speakers:
+            complete_valid.append(utterance)
+        if (not utterance['speaker_id'] in pair_speakers) and (not utterance['speaker_id'] in new_speakers):
+            train.append(utterance)
+
+    train = np.asarray(train)
+    valid = np.asarray(valid)
+    complete_valid = np.asarray(complete_valid)
+    os.remove(doc_path)
+
+    return train, valid, complete_valid
+
+
+def split_val_random(dataset):
+    """
+    Ssplit the dataset into training and validation. Speakers for the validation set are randomly selected.
+    :param dataset: dataset to be processed. np.array of dictionaries {'dialect','sex','speaker_id','features','labels'}
+    :n_m: array containg the numbers of male speakers to use in the validation for each dialect.
+    :n_f: array containg the numbers of female speakers to use in the validadion for each dialect.
+    :return: (train, valid) where both sets are two numpy arrays
+    """
+
+    drs = [[2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [2, 1], [1, 1]]  # [male, female] for each dialect
+    drs = np.asarray(drs)
+
+    n_m = drs[:, 0]
+    n_f = drs[:, 1]
+
+    train = []
+    valid = []
+
+    for i in range(len(n_m)):
+
+        mask_m = [(utterance['dialect'] == 'dr' + str(i + 1) and utterance['sex'] == 'm') for utterance in dataset]
+        mask_f = [(utterance['dialect'] == 'dr' + str(i + 1) and utterance['sex'] == 'f') for utterance in dataset]
+
+        m = dataset[mask_m]
+        f = dataset[mask_f]
+
+        speakers_m = list(set([item['speaker_id'] for item in m]))
+        speakers_f = list(set([item['speaker_id'] for item in f]))
+
+        # sampling males
+        selected_speakers_m = np.random.choice(speakers_m, n_m[i])
+        print('dr' + str(i + 1) + ', m:' + str(selected_speakers_m))
+
+        # sampling females
+        selected_speakers_f = np.random.choice(speakers_f, n_f[i])
+        print('dr' + str(i + 1) + ', f:' + str(selected_speakers_f))
+
+        # add speakers to train and validation sets
+        for utterance in m:
+            if utterance['speaker_id'] in selected_speakers_m:
+                valid.append(utterance)
+            else:
+                train.append(utterance)
+
+        for utterance in f:
+            if utterance['speaker_id'] in selected_speakers_f:
+                valid.append(utterance)
+            else:
+                train.append(utterance)
+
+    train = np.asarray(train)
+    valid = np.asarray(valid)
+
+    return train, valid
