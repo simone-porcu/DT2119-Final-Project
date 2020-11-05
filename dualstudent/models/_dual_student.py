@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
@@ -14,8 +13,7 @@ class DualStudent(Model):
     Original proposal for image classification: https://arxiv.org/abs/1909.01804
     """
 
-    # TODO: n_layers -> n_hidden_layers
-    def __init__(self, n_classes, n_features, n_units=768, n_layers=6, epsilon=0.016395, lambda1=1, lambda2=100,
+    def __init__(self, n_classes, n_features, n_units=768, n_hidden_layers=5, epsilon=0.016395, lambda1=1, lambda2=100,
                  padding_value=0, student_version='mono_directional'):
         """
         Constructs a Dual Student model.
@@ -23,7 +21,7 @@ class DualStudent(Model):
         :param n_classes: number of classes (i.e. number of units in the last layer)
         :param n_units: number of units for each hidden layer
         :param n_features: number of features per frame (i.e. last dimension)
-        :param n_layers: number of layers
+        :param n_hidden_layers: number of layers
         :param epsilon: threshold for stable sample
         :param lambda1: weight of consistency constraint
         :param lambda2: weight of stabilization constraint
@@ -39,7 +37,7 @@ class DualStudent(Model):
         self.padding_value = padding_value
         self._n_features = n_features
         self._n_units = n_units
-        self._n_layers = n_layers
+        self._n_hidden_layers = n_hidden_layers
         self._epsilon = epsilon
         self._lambda1 = lambda1
         self._lambda2 = lambda2
@@ -66,10 +64,10 @@ class DualStudent(Model):
         student = Sequential(name=name)
         student.add(Masking(mask_value=self.padding_value))
         if lstm_type == 'mono_directional':
-            for i in range(self._n_layers - 1):
+            for i in range(self._n_hidden_layers):
                 student.add(LSTM(units=self._n_units, return_sequences=True))
         elif lstm_type == 'bidirectional':
-            for i in range(self._n_layers - 1):
+            for i in range(self._n_hidden_layers):
                 student.add(Bidirectional(LSTM(units=self._n_units, return_sequences=True)))
         else:
             raise ValueError('Invalid LSTM version')
