@@ -47,7 +47,7 @@ class DualStudent(Model):
         # training losses
         self._cce = CategoricalCrossentropy()
         self._mse = MeanSquaredError()
-        self._loss1 = Mean(name='loss1')  # TODO: why mean?
+        self._loss1 = Mean(name='loss1')  # TODO: why mean? and it is in tf.keras.metrics not tf.keras.losses
         self._loss2 = Mean(name='loss2')
 
         # compose students
@@ -92,9 +92,10 @@ class DualStudent(Model):
             return self.students[student](inputs)
 
     def train(self, x_labeled, x_unlabeled, y, x_val=None, y_val=None, n_epochs=1, batch_size=32, shuffle=True):
-        unlabeled_batch_size = int(len(x_unlabeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
-        labeled_batch_size = batch_size - unlabeled_batch_size
-        n_batches = int(len(x_unlabeled) / unlabeled_batch_size)
+        # TODO: cross-batch statefulness? one update for 758 samples will be slow... maybe we have to split the sequences in sub-sequences of 20 samples
+        labeled_batch_size = int(len(x_labeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
+        unlabeled_batch_size = batch_size - labeled_batch_size
+        n_batches = min(int(len(x_unlabeled) / unlabeled_batch_size), int(len(x_labeled) / labeled_batch_size))
 
         for epoch in range(n_epochs):
             if shuffle:
@@ -109,29 +110,24 @@ class DualStudent(Model):
                 y_batch = y[i * labeled_batch_size:(i + 1) * labeled_batch_size]
                 x_unlabeled_batch = x_unlabeled[i * unlabeled_batch_size:(i + 1) * unlabeled_batch_size]
 
-                L1, L2 = self.train_step(x_labeled_batch, x_unlabeled_batch, y_batch)
+                L1, L2 = self._train_step(x_labeled_batch, x_unlabeled_batch, y_batch)
             # this is not the loss for the whole epoch it is just to test if it works
             print("epoch loss", L1, L2)
 
             # self.test_step(x_val, y_val)  # TODO
 
-    # @tf.function
-    def train_step(self, x_labeled, x_unlabeled, y):
-        hej = time.time()
-        # TODO: cross-batch statefulness? one update for 758 samples will be slow... maybe we have to split the sequences in sub-sequences of 20 samples
-
+    @tf.function
+    def _train_step(self, x_labeled, x_unlabeled, y):
         # noisy augmented batches (TODO: improvement with data augmentation instead of noise)
         B1_labeled = x_labeled + tf.random.normal(shape=x_labeled.shape)
         B2_labeled = x_labeled + tf.random.normal(shape=x_labeled.shape)
-        B1_unlabeled = x_unlabeled + tf.random.normal(shape=x_unlabeled.shape)  # TODO: solve BATCH_SIZE problem
-        B2_unlabeled = x_unlabeled + tf.random.normal(shape=x_unlabeled.shape)  # TODO: solve BATCH_SIZE problem
+        B1_unlabeled = x_unlabeled + tf.random.normal(shape=x_unlabeled.shape)
+        B2_unlabeled = x_unlabeled + tf.random.normal(shape=x_unlabeled.shape)
 
         with tf.GradientTape(persistent=True) as tape:
             # predict augmented labeled samples (for classification constraint)
             prob1_labeled = self.student1(B1_labeled, training=True)
             prob2_labeled = self.student2(B2_labeled, training=True)
-            # self.student1.summary()
-            # print("aslkdjaslkdj", prob1_labeled)
 
             # predict augmented unlabeled samples (for consistency and stabilization constraints)
             prob1_unlabeled_B1 = self.student1(B1_unlabeled, training=True)
@@ -191,15 +187,11 @@ class DualStudent(Model):
         self.optimizer.apply_gradients(zip(gradients2, self.student2.trainable_variables))
         del tape  # to release memory (persistent tape)
 
-        # update metrics
-        # self._loss1.update_state(L1)
-        # self._loss2.update_state(L2)
+        # TODO: update metrics
 
-        # print('loss1', L1, 'loss2', L2)
-        print("tiden är:", time.time() - hej)
         return L1, L2
 
     @tf.function
-    def test_step(self, data):
+    def _test_step(self, data):
         # TODO
         pass
