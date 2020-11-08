@@ -38,18 +38,24 @@ class PhoneErrorRate(Metric):
 
     def update_state(self, y_true, y_pred):
         """
-        Compute the edit distance and update the statistics (edit distance and length).
+        Compute the edit distances and update the statistics (edit distance and length).
 
-        :param y_true: numpy array of shape (n_frames,), ground truth for an utterance
-        :param y_pred: numpy array of shape (n_frames,), predictions for an utterance
+        :param y_true: numpy array of variable-length numpy arrays, ground truth for an utterance
+        :param y_pred: numpy array of variable-length numpy arrays, predictions for an utterance
         """
-        y_true = _map_labels(self.mapping, y_true)
-        y_true = _merge_consequent_states(y_true)
-        y_pred = _map_labels(self.mapping, y_true)
-        y_pred = _merge_consequent_states(y_pred)
-        sm = SequenceMatcher(a=y_true, b=y_pred)
-        self.edit_distance.assign_add(sm.distance())
-        self.length.assign_add(len(y_true))
+        assert len(y_true) == len(y_pred)
+        for i in range(len(y_true)):
+            assert y_true[i] == y_pred[i]
+
+            y_true = _map_labels(self.mapping, y_true)
+            y_pred = _map_labels(self.mapping, y_true)
+
+            y_true = _merge_consequent_states(y_true)
+            y_pred = _merge_consequent_states(y_pred)
+
+            sm = SequenceMatcher(a=y_true, b=y_pred)
+            self.edit_distance.assign_add(sm.distance())
+            self.length.assign_add(len(y_true))
 
     def result(self):
         return self.edit_distance / self.length
