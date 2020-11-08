@@ -1,13 +1,12 @@
 import unittest
 import numpy as np
 from dualstudent import get_root_dir
-from dualstudent.speech import *
-from dualstudent.speech import load_sphere
-from dualstudent.speech import load_transcription
+from dualstudent.preprocess import *
 from dualstudent.datasets import timit
+from dualstudent.io import load_sphere, load_transcription
 
 
-class PreprocessTestCase(unittest.TestCase):
+class SpeechTestCase(unittest.TestCase):
     def test_extract_features(self):
         filepath = get_root_dir() / 'data' / 'timit' / 'train' / 'dr1' / 'mwar0' / 'sx415.wav'
         win_len = 0.03
@@ -41,17 +40,33 @@ class PreprocessTestCase(unittest.TestCase):
 
     def test_normalize(self):
         dataset_path = get_root_dir() / 'data' / 'timit'
-        train_set, test_set = timit.load_data(dataset_path)
-        train_set, test_set = normalize(train_set, test_set, mode='full')
+        train_set, _ = timit.load_data(dataset_path)
 
-        x_train = np.concatenate([utterance['features'] for utterance in train_set])
+        # test normalization on whole dataset
+        normalized_train_set, _ = normalize(train_set, mode='full')
+        x_train = np.concatenate([utterance['features'] for utterance in normalized_train_set])
         mean = x_train.mean(axis=0)
         var = x_train.var(axis=0)
         for i in range(x_train.shape[1]):
             self.assertAlmostEqual(mean[i], 0)
             self.assertAlmostEqual(var[i], 1)
 
+        # test normalization on
         # TODO: test other normalization modes
+
+    def test_unlabel(self):
+        dataset_path = get_root_dir() / 'data' / 'timit'
+        train_set, _ = timit.load_data(dataset_path)
+        n_total = len(train_set)
+
+        unlabel(train_set, 0.7, seed=1)
+        n_labeled = len([utterance for utterance in train_set if 'labels' in utterance])
+        n_unlabeled = len([utterance for utterance in train_set if 'labels' not in utterance])
+
+        self.assertEqual(n_labeled + n_unlabeled, n_total)
+        self.assertTrue(n_labeled < n_unlabeled)
+        self.assertEqual(n_labeled, 1104)
+        self.assertEqual(n_unlabeled, 2592)
 
 
 if __name__ == '__main__':

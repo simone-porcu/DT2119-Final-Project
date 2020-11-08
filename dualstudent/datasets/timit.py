@@ -4,9 +4,8 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 from dualstudent import get_root_dir
-from dualstudent.speech import extract_features, extract_labels
-from dualstudent.speech import load_sphere
-from dualstudent.speech import load_transcription, get_number_of_frames
+from dualstudent.preprocess import extract_features, extract_labels, get_number_of_frames
+from dualstudent.io import load_sphere, load_transcription
 
 WIN_LEN = 0.03
 WIN_SHIFT = 0.01
@@ -52,10 +51,11 @@ def get_phone_mapping():
     - dictionary (origin phone -> train label), to load targets for the model from transcriptions. Different phones can
         be mapped to the same label, as a subset of phones is used for training (48 phones).
     - dictionary (train label -> test label), to evaluate the model on a subset of the training phones (39 phones).
+    - dictionary (test label -> test phone), to print the names (e.g. in confusion matrix)
 
     The training and test phone subsets are chosen according to standard recipes for TIMIT.
 
-    :return: tuple (phone_labels, evaluation_mapping), containing the described dictionaries.
+    :return: tuple (phone_labels, evaluation_mapping, test_label_to_test_phone), containing the described dictionaries.
     """
     # read file
     filepath = get_root_dir() / 'data' / 'timit_phones_60-48-39.map'
@@ -72,22 +72,22 @@ def get_phone_mapping():
     test_labels = {phone: label for label, phone in enumerate(sorted(data_frame['test'].unique()))}
 
     # get phone labels (origin phone -> train label, to generate targets from transcriptions)
-    origin_to_train_label = {}
+    origin_phone_to_train_label = {}
     for origin_phone in data_frame['origin']:
         train_phone = origin_to_train_phone[origin_phone]
-        origin_to_train_label[origin_phone] = train_labels[train_phone]
+        origin_phone_to_train_label[origin_phone] = train_labels[train_phone]
 
     # get evaluation mapping (train label -> test label, to evaluate the model using a subset of phones)
     train_label_to_test_label = {}
     for origin_phone in data_frame['origin']:
         test_phone = origin_to_test_phone[origin_phone]
-        train_label = origin_to_train_label[origin_phone]
+        train_label = origin_phone_to_train_label[origin_phone]
         train_label_to_test_label[train_label] = test_labels[test_phone]
 
     # get test class names (for confusion matrix)
-    test_label_to_test_name = {value: key for key, value in test_labels.items()}
+    test_label_to_test_phone = {value: key for key, value in test_labels.items()}
 
-    return origin_to_train_label, train_label_to_test_label, test_label_to_test_name
+    return origin_phone_to_train_label, train_label_to_test_label, test_label_to_test_phone
 
 
 def _preprocess_data(dataset_path, core_test=False):
@@ -99,50 +99,46 @@ def _preprocess_data(dataset_path, core_test=False):
     if core_test:
         core_test_speakers = get_core_test_speakers()
 
-    # prepare dataset
     dataset = []
     file_paths = list(dataset_path.glob('**/*.wav'))
-    with tqdm(total=len(file_paths)) as bar:
-        bar.set_description('Processing {}'.format(dataset_path))
-        for filepath in file_paths:
-            bar.update()
-            info = path_to_info(filepath)
+    for filepath in tqdm(file_paths, desc='Processing {}'.format(dataset_path)):
+        info = path_to_info(filepath)
 
-            # check sentence and speaker
-            if info['text_type'] == 'sa':
-                continue
-            if core_test and not info['speaker_id'] in core_test_speakers[info['dialect']]:
-                continue
+        # check sentence and speaker
+        if info['text_type'] == 'sa':
+            continue
+        if core_test and not info['speaker_id'] in core_test_speakers[info['dialect']]:
+            continue
 
-            # load audio and transcription
-            samples, sample_rate = load_sphere(filepath)
-            filepath = filepath.with_suffix('.phn')
-            transcription = load_transcription(filepath)
+        # load audio and transcription
+        samples, sample_rate = load_sphere(filepath)
+        filepath = filepath.with_suffix('.phn')
+        transcription = load_transcription(filepath)
 
-            # drop leading and trailing samples not in the transcription
-            samples = samples[transcription[0][0]:transcription[-1][1]]
+        # drop leading and trailing samples not in the transcription
+        samples = samples[transcription[0][0]:transcription[-1][1]]
 
-            # extract features and labels
-            features = extract_features(samples, sample_rate, WIN_LEN, WIN_SHIFT)
-            n_frames = get_number_of_frames(samples.shape[0], sample_rate, WIN_LEN, WIN_SHIFT)
-            assert features.shape[0] - n_frames <= 1
-            features = features[:n_frames]     # the last frame may have the window not fully inside, we drop it
-            labels = extract_labels(transcription, sample_rate, n_frames, WIN_LEN, WIN_SHIFT)
+        # extract features and labels
+        features = extract_features(samples, sample_rate, WIN_LEN, WIN_SHIFT)
+        n_frames = get_number_of_frames(samples.shape[0], sample_rate, WIN_LEN, WIN_SHIFT)
+        assert features.shape[0] - n_frames <= 1
+        features = features[:n_frames]     # the last frame may have the window not fully inside, we drop it
+        labels = extract_labels(transcription, sample_rate, n_frames, WIN_LEN, WIN_SHIFT)
 
-            # drop frames with ignored phones as target (glottal stop /q/)
-            labels = np.array([(phone_labels[label] if label in phone_labels else -1) for label in labels])
-            valid_idx = np.where(labels != -1)[0]
-            features = features[valid_idx]
-            labels = labels[valid_idx]
+        # drop frames with ignored phones as target (glottal stop /q/)
+        labels = np.array([(phone_labels[label] if label in phone_labels else -1) for label in labels])
+        valid_idx = np.where(labels != -1)[0]
+        features = features[valid_idx]
+        labels = labels[valid_idx]
 
-            # add to dataset
-            dataset.append({
-                'dialect': info['dialect'],
-                'sex': info['sex'],
-                'speaker_id': info['speaker_id'],
-                'features': features,
-                'labels': labels
-            })
+        # add to dataset
+        dataset.append({
+            'dialect': info['dialect'],
+            'sex': info['sex'],
+            'speaker_id': info['speaker_id'],
+            'features': features,
+            'labels': labels
+        })
 
     return np.array(dataset)
 

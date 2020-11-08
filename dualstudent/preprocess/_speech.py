@@ -81,12 +81,12 @@ def normalize(train_set, test_set=None, mode='full'):
     """
     Normalizes the dataset according to the specified mode.
 
-    :param train_set: list of utterances, each utterance is a dictionary containing utterance info useful for
+    :param train_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
         normalization, feature vectors, and phone labels.
-    :param test_set: list of utterances, each utterance is a dictionary containing utterance info useful for
+    :param test_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
         normalization, feature vectors, and phone labels.
     :param mode: normalization mode. Support for: 'full', 'speaker', 'utterance'.
-    :return: (train_set, test_set), normalized
+    :return: tuple (train_set, test_set) if test_set is provided, otherwise train_set. The results are normalized.
     """
     if mode == 'full':
         # fit scaler
@@ -104,12 +104,12 @@ def normalize(train_set, test_set=None, mode='full'):
     elif mode == 'speaker':
         for index, dataset in enumerate([train_set, test_set]):
             # split the set according to the speaker
-            set_splitted = []
+            set_split = []
             grouper = itemgetter("speaker_id")
             for _, v in groupby(dataset, grouper):
-                set_splitted.append(list(v))  # list of lists of dict, each sublist represent a speaker
+                set_split.append(list(v))  # list of lists of dict, each sublist represent a speaker
 
-            for speaker_set in set_splitted:
+            for speaker_set in set_split:
                 # fit scaler
                 x_train = np.concatenate([utterance['features'] for utterance in speaker_set])
                 ss = StandardScaler()
@@ -120,12 +120,11 @@ def normalize(train_set, test_set=None, mode='full'):
                     utterance['features'] = ss.transform(utterance['features'])
 
             # from the normalized list of lists recover a single list containing all the utterances
-            single_list = lambda l: [item for sublist in l for item in sublist]
-
+            aux = np.array([item for sublist in set_split for item in sublist])
             if index == 0:
-                train_set = np.array(single_list(set_splitted))
+                train_set = aux
             else:
-                test_set = np.array(single_list(set_splitted))
+                test_set = aux
 
     elif mode == 'utterance':
         for dataset in [train_set, test_set]:
@@ -144,44 +143,32 @@ def normalize(train_set, test_set=None, mode='full'):
     return train_set if test_set is None else train_set, test_set
 
 
-def unlabel(x_train, y_train, percentage):
+def unlabel(train_set, percentage, seed=None):
     """
-    Removes the labels from a percentage of the training samples. The percentage is computed at sample-level, not
+    Removes the labels from a percentage of training frames. The percentage is computed at sample-level, not
     at utterance-level.
 
-    :param x_train: np.array of shape (n_utterance, sequence_length, n_features), zero-padded training frames
-    :param y_train: np.array of shape (n_utterances, sequence_length, n_classes), one-hot encoded zero-padded labels
+    :param train_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
+        normalization, feature vectors, and phone labels.
     :param percentage: percentage of samples to unlabel
-    :return: tuple (x_labeled, x_unlabeled, y), where y are the labels for x_labeled (x_unlabeled has no labels)
+    :return: train_set, with some utterances without labels (i.e. dictionary not containing 'labels')
     """
-    total = int(y_train.sum())              # by summing we ignore labels encoded as all 0s (padding)
+    if seed is not None:
+        np.random.seed(seed)
+
+    train_set = np.copy(train_set)                  # copy to avoid modifying original
+    total = sum([len(utterance['labels']) for utterance in train_set])
     total_unlabeled = int(round((total * percentage)))
-    shuffled_idx = np.arange(y_train.shape[0])
+    shuffled_idx = np.arange(len(train_set))
     np.random.shuffle(shuffled_idx)
 
-    # get unlabeled
-    x_unlabeled = []
-    i = 0
     n_unlabeled = 0
-    while n_unlabeled < total_unlabeled:
-        idx = shuffled_idx[i]               # random index of utterance chosen to unlabel
-        n_samples = y_train[idx].sum()
-        x_unlabeled.append(x_train[idx])
+    for i in shuffled_idx:
+        idx = shuffled_idx[i]                       # random index of utterance chosen to unlabel
+        n_samples = len(train_set[idx]['labels'])
+        del train_set[idx]['labels']                # unlabel
         n_unlabeled += n_samples
-        i += 1
+        if n_unlabeled >= total_unlabeled:          # percentage reached
+            break
 
-    # get labeled
-    x_labeled = []
-    y = []
-    while i < len(y_train):
-        idx = shuffled_idx[i]
-        x_labeled.append(x_train[idx])
-        y.append(y_train[idx])
-        i += 1
-
-    # convert to numpy arrays
-    x_labeled = np.array(x_labeled)
-    x_unlabeled = np.array(x_unlabeled)
-    y = np.array(y)
-
-    return x_labeled, x_unlabeled, y
+    return train_set
