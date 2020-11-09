@@ -1,4 +1,3 @@
-import numpy as np
 from tensorflow.keras.metrics import Metric
 from edit_distance import SequenceMatcher
 
@@ -12,10 +11,6 @@ def _merge_consequent_states(y):
         cur_y = i
         merged_y += [cur_y]
     return merged_y
-
-
-def _map_labels(mapping, labels):
-    return np.array([mapping[label] for label in labels])
 
 
 class PhoneErrorRate(Metric):
@@ -40,20 +35,17 @@ class PhoneErrorRate(Metric):
         """
         Compute the edit distances and update the statistics (edit distance and length).
 
-        :param y_true: numpy array of variable-length numpy arrays, ground truth for an utterance
-        :param y_pred: numpy array of variable-length numpy arrays, predictions for an utterance
+        :param y_true: numpy array of variable-length numpy arrays, ground truth for an utterance (not one-hot)
+        :param y_pred: numpy array of variable-length numpy arrays, predictions for an utterance (not one-hot)
         """
         assert len(y_true) == len(y_pred)
         for i in range(len(y_true)):
             assert y_true[i] == y_pred[i]
 
-            y_true = _map_labels(self.mapping, y_true)
-            y_pred = _map_labels(self.mapping, y_true)
-
             y_true = _merge_consequent_states(y_true)
             y_pred = _merge_consequent_states(y_pred)
-
             sm = SequenceMatcher(a=y_true, b=y_pred)
+
             self.edit_distance.assign_add(sm.distance())
             self.length.assign_add(len(y_true))
 
