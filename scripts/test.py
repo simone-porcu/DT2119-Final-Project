@@ -2,9 +2,8 @@ import argparse
 from pathlib import Path
 from utils import *
 from dualstudent.datasets import timit
-from dualstudent.preprocess import normalize, map_labels
+from dualstudent.preprocess import normalize
 from dualstudent.models import DualStudent
-from dualstudent.metrics import PhoneErrorRate, plot_confusion_matrix, make_classification_report
 
 
 def get_command_line_arguments():
@@ -34,11 +33,11 @@ def main():
     output_path = Path(args.output)
     output_path.mkdir(parents=True, exist_ok=True)
     config = Config(model_name=model_path.name)
-    model_path = str(model_path)
+    model_path = str(model_path / 'model.h5')
 
     # prepare data
     x_test, y_test = get_data(dataset_path)
-    _, _, test_label_to_phone_name = timit.get_phone_mapping()
+    _, evaluation_mapping, _ = timit.get_phone_mapping()
 
     # prepare model
     model = DualStudent(
@@ -54,36 +53,13 @@ def main():
     )
     model.load_weights(model_path)
 
-    # predict with model
-    y_pred, mask = model.pad_and_predict(x_test)
-    y_pred = np.argmax(y_pred, axis=-1)
-
-    # phone error rate
-    per = PhoneErrorRate()
-    for i in range(len(y_pred)):
-        # drop padding
-        x_utterance = x_test[i]
-        length = len(x_utterance)
-        y_utterance_true = y_test[i]
-        y_utterance_pred = y_pred[i][:length]
-
-        # map training phones to test phones
-        y_utterance_true = list(map_labels(test_label_to_phone_name, y_utterance_true))
-        y_utterance_pred = list(map_labels(test_label_to_phone_name, y_utterance_pred))
-
-        # update phone error rate
-        per.update_state(y_utterance_true, y_utterance_pred)
-
-    print('Phone Error Rate: {:.2f}%'.format(per * 100))
-    with open(output_path / 'per.txt', mode='w') as f:
-        f.write('Phone Error Rate: {:.2f}%'.format(per * 100))
-
-    # classification report and confusion matrix
-    y_test = y_test.flatten()   # flatten
-    y_pred = y_pred[mask]       # flatten removing padding
-    class_names = [name for _, name in sorted(test_label_to_phone_name.items())]
-    make_classification_report(y_test, y_pred, class_names)
-    plot_confusion_matrix(y_test, y_pred, class_names)
+    # evaluate model
+    results = model.test(x_test, y_test, evaluation_mapping=evaluation_mapping)
+    with open(output_path / 'performance.txt') as f:
+        for k, v in results.items():
+            output = f'{k}: {v}'
+            print(output)
+            f.write(output + '\n')
 
 
 if __name__ == '__main__':

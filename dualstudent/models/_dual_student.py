@@ -9,8 +9,7 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy, MeanSquaredEr
 from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean, Accuracy
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from dualstudent.metrics import PhoneErrorRate
-from dualstudent.models._utils import sigmoid_rampup, select_batch
-from dualstudent.preprocess import map_labels
+from dualstudent.models._utils import sigmoid_rampup, select_batch, map_labels
 
 
 class DualStudent(Model):
@@ -19,12 +18,10 @@ class DualStudent(Model):
 
     How to train: 1) set the optimizer by means of compile(), 2) use train()
     How to test: use test()
-    How to predict: use pad_and_predict()
 
     Remarks:
     - Do not use fit() by Keras, use train()
     - Do not use evaluate() by Keras, use test()
-    - Do not use predict() by Keras, use pad_and_predict()
     - Compiled metrics and loss (i.e. set by means of compile()) are not used
 
     Original proposal for image classification: https://arxiv.org/abs/1909.01804
@@ -64,33 +61,37 @@ class DualStudent(Model):
         self._lambda1 = None
         self._lambda2 = None
 
-        # loss (weighted sum of classification, consistency and stabilization losses)
-        self._loss1 = Mean(name='loss1')
-        self._loss2 = Mean(name='loss2')
-
-        # classification loss
-        self._loss_cls = SparseCategoricalCrossentropy()        # to be used on-the-fly
-        self._loss1_cls = Mean(name='loss1_cls')                # for history on the epoch
-        self._loss2_cls = Mean(name='loss2_cls')
-
-        # consistency loss
+        # loss
+        self._loss_cls = SparseCategoricalCrossentropy()            # classification loss
+        self._loss_sta = MeanSquaredError()                         # stabilization loss
         if consistency_loss == 'mse':
-            self._loss_con = MeanSquaredError()                 # to be used on-the-fly
+            self._loss_con = MeanSquaredError()                     # consistency loss
         elif consistency_loss == 'kl':
             self._loss_con = KLDivergence()
         else:
             raise ValueError('Invalid consistency metric')
-        self._loss1_con = Mean(name='loss1_con')                # for history on the epoch
+
+        # metrics for training
+        self._loss1 = Mean(name='loss1')                            # we want to average the loss for each batch
+        self._loss2 = Mean(name='loss2')
+        self._loss1_cls = Mean(name='loss1_cls')
+        self._loss2_cls = Mean(name='loss2_cls')
+        self._loss1_con = Mean(name='loss1_con')
         self._loss2_con = Mean(name='loss2_con')
-
-        # stabilization loss
-        self._loss_sta = MeanSquaredError()                     # to be used on-the-fly
-        self._loss1_sta = Mean(name='loss1_sta')                # for history on the epoch
+        self._loss1_sta = Mean(name='loss1_sta')
         self._loss2_sta = Mean(name='loss2_sta')
-
-        # accuracy
         self._acc1 = SparseCategoricalAccuracy(name='acc1')
         self._acc2 = SparseCategoricalAccuracy(name='acc2')
+
+        # metrics for testing
+        self._test_loss1 = Mean(name='test_loss1')
+        self._test_loss2 = Mean(name='test_loss2')
+        self._test_acc1_train_phones = SparseCategoricalAccuracy(name='test_acc1_train_phones')
+        self._test_acc2_train_phones = SparseCategoricalAccuracy(name='test_acc2_train_phones')
+        self._test_acc1 = Accuracy(name='test_acc1')
+        self._test_acc2 = Accuracy(name='test_acc2')
+        self._test_per1 = PhoneErrorRate(name='test_per1')
+        self._test_per2 = PhoneErrorRate(name='test_per2')
 
         # compose students
         if version == 'mono_directional':
@@ -104,7 +105,7 @@ class DualStudent(Model):
         self.student1 = self._get_student('student1', lstm_types[0])
         self.student2 = self._get_student('student2', lstm_types[1])
 
-        # masking layer (just to use compute_mask)
+        # masking layer (just to use compute_mask and remove padding)
         self.mask = Masking(mask_value=self.padding_value)
 
     def _get_student(self, name, lstm_type):
@@ -144,44 +145,17 @@ class DualStudent(Model):
         else:
             raise ValueError('Invalid student')
 
-    def pad_and_predict(self, x, student='student1', batch_size=32):
-        """
-        It pads the inputs and feed-forwards to one of the students, one batch at a time. You should use this method
-        if you wish to pass to the model variable-length utterances or a big dataset.
-
-        :param x: numpy array of numpy arrays (n_frames, n_features), features corresponding to y_labeled.
-            'n_frames' can vary, padding is added to make x_labeled a tensor.
-        :param student: one of 'student1', 'student2'
-        :param batch_size: batch size
-        :return: tuple (predictions, mask), where:
-            - predictions is numpy array of shape (n_utterances, n_frames, n_classes) containing the softmax activation
-                of the padded inputs.
-            - mask is the boolean mask having True for the non-padding time steps.
-        """
-        y_pred = None
-        n_batches = int(len(x) / batch_size)
-        x = pad_sequences(x, padding='post', value=self.padding_value, dtype='float32')
-        mask = self.mask.compute_mask(x)
-
-        for i in range(n_batches):
-            x_batch = select_batch(x, i, batch_size)
-            x_batch = tf.convert_to_tensor(x_batch)
-            y_batch = self(x_batch, student=student, training=False)
-            y_pred = tf.concat([y_pred, y_batch], axis=0) if y_pred is not None else y_batch
-
-        return y_pred.numpy(), mask
-
     def train(self, x_labeled, x_unlabeled, y_labeled, x_val=None, y_val=None, n_epochs=10, batch_size=32, shuffle=True,
               evaluation_mapping=None, logs_path=None, checkpoints_path=None, seed=None):
         """
-        Trains the model with both labeled and unlabeled data (semi-supervised learning).
+        Trains the students with both labeled and unlabeled data (semi-supervised learning).
 
         :param x_labeled: numpy array of numpy arrays (n_frames, n_features), features corresponding to y_labeled.
-            'n_frames' can vary, padding is added to make 'x_labeled' a tensor.
+            'n_frames' can vary, padding is added to make x_labeled a tensor.
         :param x_unlabeled: numpy array of numpy arrays of shape (n_frames, n_features), features without labels.
-            'n_frames' can vary, padding is added to make 'x_unlabeled' a tensor.
+            'n_frames' can vary, padding is added to make x_unlabeled a tensor.
         :param y_labeled: numpy array of numpy arrays of shape (n_frames,), labels corresponding to x_labeled.
-            'n_frames' can vary, padding is added to make 'y_labeled' a tensor.
+            'n_frames' can vary, padding is added to make y_labeled a tensor.
         :param x_val: like x_labeled, but for validation set
         :param y_val: like y_labeled, but for validation set
         :param n_epochs: integer, number of training epochs
@@ -256,38 +230,40 @@ class DualStudent(Model):
                 # train step
                 self._train_step(x_labeled_batch, x_unlabeled_batch, y_labeled_batch)
 
-            # put stats in dictionary (easy management)
-            train_results = {
+            # put metrics in dictionary (easy management)
+            train_metrics = {
                 self._loss1.name: self._loss1.result(),
                 self._loss2.name: self._loss2.result(),
+                self._loss1_cls.name: self._loss1_cls.result(),
+                self._loss2_cls.name: self._loss2_cls.result(),
+                self._loss1_con.name: self._loss1_con.result(),
+                self._loss2_con.name: self._loss2_con.result(),
+                self._loss1_sta.name: self._loss1_sta.result(),
+                self._loss2_sta.name: self._loss2_sta.result(),
                 self._acc1.name: self._acc1.result(),
                 self._acc2.name: self._acc2.result(),
             }
-            results = {'train': train_results}
+            metrics = {'train': train_metrics}
 
             # test on validation set
             if x_val is not None and y_val is not None:
-                val_results = self.test(x_val, y_val, evaluation_mapping=evaluation_mapping)
-                results['val'] = val_results
+                val_metrics = self.test(x_val, y_val, evaluation_mapping=evaluation_mapping)
+                metrics['val'] = val_metrics
 
-            # save logs
+            # save logs and print metrics
             with train_summary_writer.as_default():
-                for results_ in results.values():
-                    for k, v in results_:
+                for dataset, metrics_ in metrics.items():
+                    print(f'Epoch {epoch + 1} - ', dataset, ' - ', sep='', end='')
+                    for k, v in metrics_.items():
+                        print(f'{k}: {v}, ', end='')
                         tf.summary.scalar(k, v, step=epoch)
+                    print()
 
             # save checkpoint
             if checkpoint is not None:
                 checkpoint.save(file_prefix=checkpoints_path)
 
-            # print stats
-            for dataset, results_ in results.items():
-                print(f'Epoch {epoch + 1} - ', dataset, ' - ', sep='', end='')
-                for k, v in results_:
-                    print(k, '=', v, ', ', sep='', end='')
-                print()
-
-            # reset losses and metrics
+            # reset metrics
             self._loss1.reset_states()
             self._loss2.reset_states()
             self._loss1_cls.reset_states()
@@ -299,7 +275,13 @@ class DualStudent(Model):
             self._acc1.reset_states()
             self._acc2.reset_states()
 
-    @tf.function
+    """
+    If you want to use graph execution, pad the whole dataset externally and uncomment the decorator below.
+    If you uncomment the decorator without padding the dataset, the graph will be compiled for each batch, 
+    because train() pads at batch level and so the batches have different shapes. This would result in worse
+    performance compared to eager execution.
+    """
+    # @tf.function
     def _train_step(self, x_labeled, x_unlabeled, y_labeled):
         # noisy augmented batches (TODO: improvement with data augmentation instead of noise)
         B1_labeled = self._noisy_augment(x_labeled)
@@ -310,10 +292,9 @@ class DualStudent(Model):
         # compute masks (to remove padding)
         mask_labeled = self.mask.compute_mask(x_labeled)
         mask_unlabeled = self.mask.compute_mask(x_unlabeled)
+        y_labeled = y_labeled[mask_labeled]     # remove padding from labels
 
-        # remove padding from labels
-        y_labeled = y_labeled[mask_labeled]
-
+        # forward pass
         with tf.GradientTape(persistent=True) as tape:
             # predict augmented labeled samples (for classification constraint)
             prob1_labeled = self(B1_labeled, training=True, student='student1')
@@ -379,13 +360,14 @@ class DualStudent(Model):
             L1 = L1_cls + self._lambda1 * L1_con + self._lambda2 * L1_sta
             L2 = L2_cls + self._lambda1 * L2_con + self._lambda2 * L2_sta
 
+        # backward pass
         gradients1 = tape.gradient(L1, self.student1.trainable_variables)
         gradients2 = tape.gradient(L2, self.student2.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients1, self.student1.trainable_variables))
         self.optimizer.apply_gradients(zip(gradients2, self.student2.trainable_variables))
         del tape  # to release memory (persistent tape)
 
-        # update loss
+        # update metrics
         self._loss1.update_state(L1)
         self._loss2.update_state(L2)
         self._loss1_cls.update_state(L1_cls)
@@ -394,52 +376,105 @@ class DualStudent(Model):
         self._loss2_con.update_state(L2_con)
         self._loss1_sta.update_state(L1_sta)
         self._loss2_sta.update_state(L2_sta)
-
-        # update accuracy
         self._acc1.update_state(y_labeled, prob1_labeled)
         self._acc2.update_state(y_labeled, prob2_labeled)
 
     def test(self, x, y, batch_size=32, evaluation_mapping=None):
         """
-        Computes loss, accuracy and phone error rate for a dataset. The dataset could also be big and will be split in
-        batches.
+        Tests the model (both students).
 
-        :param x: numpy array of variable-length numpy arrays of shape (n_frames,n_features), features
-        :param y: numpy array of variable-length numpy arrays of shape (n_frames,), labels
-        :param batch_size: batch size
+        :param x: numpy array of numpy arrays (n_frames, n_features), features corresponding to y_labeled.
+            'n_frames' can vary, padding is added to make x a tensor.
+        :param y: numpy array of numpy arrays of shape (n_frames,), labels corresponding to x_labeled.
+            'n_frames' can vary, padding is added to make y a tensor.
+        :param batch_size: integer, batch size
         :param evaluation_mapping: dictionary {training label -> test label}, the test phones should be a subset of the
             training phones
         :return: dictionary {metric_name -> value}
         """
-        results = {}
+        # test batch by batch
+        n_batches = int(len(x) / batch_size)
+        for i in trange(n_batches, desc='test batches'):
+            # select batch
+            x_batch = select_batch(x, i, batch_size)
+            y_batch = select_batch(y, i, batch_size)
 
-        # predict
-        y_pred1, mask = self.pad_and_predict(x, student='student1', batch_size=batch_size)
-        y_pred2, _ = self.pad_and_predict(x, student='student2', batch_size=batch_size)
+            # pad batch
+            x_batch = pad_sequences(x_batch, padding='post', value=self.padding_value, dtype='float32')
+            y_batch = pad_sequences(y_batch, padding='post', value=-1)
+
+            # convert to tensors
+            x_batch = tf.convert_to_tensor(x_batch)
+            y_batch = tf.convert_to_tensor(y_batch)
+
+            # test step
+            self._test_step(x_batch, y_batch, evaluation_mapping)
+
+        # put metrics in dictionary (easy management)
+        test_metrics = {
+            self._test_loss1.name: self._test_loss1.result(),
+            self._test_loss2.name: self._test_loss2.result(),
+            self._test_acc1_train_phones.name: self._test_acc1_train_phones.result(),
+            self._test_acc2_train_phones.name: self._test_acc2_train_phones.result(),
+            self._test_acc1.name: self._test_acc1.result(),
+            self._test_acc2.name: self._test_acc2.result(),
+            self._test_per1.name: self._test_per1.result(),
+            self._test_per2.name: self._test_per2.result(),
+        }
+
+        # reset metrics
+        self._test_loss1.reset_states()
+        self._test_loss2.reset_states()
+        self._test_acc1_train_phones.reset_states()
+        self._test_acc2_train_phones.reset_states()
+        self._test_acc1.reset_states()
+        self._test_acc2.reset_states()
+        self._test_per1.reset_states()
+        self._test_per2.reset_states()
+
+        return test_metrics
+
+    # @tf.function      # see note in _train_step()
+    def _test_step(self, x, y, evaluation_mapping):
+        # compute mask (to remove padding)
+        mask = self.mask.compute_mask(x)
+
+        # forward pass
+        y_prob1_train_phones = self.student1(x, training=False)
+        y_prob2_train_phones = self.student2(x, training=False)
+        y_pred1_train_phones = tf.argmax(y_prob1_train_phones, axis=-1)
+        y_pred2_train_phones = tf.argmax(y_prob2_train_phones, axis=-1)
+        y_train_phones = tf.identity(y)
+
+        # map labels to set of test phones
+        y = tf.numpy_function(map_labels, [y_train_phones, evaluation_mapping], [tf.float32])
+        y_pred1 = tf.numpy_function(map_labels, [y_pred1_train_phones, evaluation_mapping], [tf.float32])
+        y_pred2 = tf.numpy_function(map_labels, [y_pred2_train_phones, evaluation_mapping], [tf.float32])
+
+        # update phone error rate
+        self._test_per1.update_state(y, y_pred1, mask)
+        self._test_per2.update_state(y, y_pred2, mask)
 
         # remove padding
         y_pred1 = y_pred1[mask]
         y_pred2 = y_pred2[mask]
+        y_prob1_train_phones = y_prob1_train_phones[mask]
+        y_prob2_train_phones = y_prob2_train_phones[mask]
+        y_train_phones = y_train_phones[mask]
+        y = y[mask]
 
-        # loss
-        results['loss1'] = self._loss_cls(y, y_pred1)
-        results['loss2'] = self._loss_cls(y, y_pred2)
+        # compute loss
+        loss1 = self._loss_cls(y_train_phones, y_prob1_train_phones)
+        loss2 = self._loss_cls(y_train_phones, y_prob2_train_phones)
 
-        # accuracy on original phones
-        results['acc1'] = SparseCategoricalAccuracy()(y, y_pred1)
-        results['acc2'] = SparseCategoricalAccuracy()(y, y_pred2)
+        # update loss
+        self._test_loss1.update_state(loss1)
+        self._test_loss2.update_state(loss2)
 
-        # accuracy on test phones
-        y_pred1 = np.argmax(y_pred1, axis=-1)
-        y_pred2 = np.argmax(y_pred2, axis=-1)
-        if evaluation_mapping is not None:
-            y_pred1 = map_labels(evaluation_mapping, y_pred1)
-            y_pred2 = map_labels(evaluation_mapping, y_pred2)
-            results['acc1_test_phones'] = Accuracy()(y, y_pred1)
-            results['acc2_test_phones'] = Accuracy()(y, y_pred2)
+        # update accuracy using training phones
+        self._test_acc1_train_phones.update_state(y_train_phones, y_prob1_train_phones)
+        self._test_acc2_train_phones.update_state(y_train_phones, y_prob2_train_phones)
 
-        # phone error rate (for original phones if evaluation mapping is None, otherwise on test phones)
-        results['per1'] = PhoneErrorRate()(y, y_pred1)
-        results['per2'] = PhoneErrorRate()(y, y_pred2)
-
-        return results
+        # update accuracy using test phones
+        self._test_acc1.update_state(y, y_pred1)
+        self._test_acc2.update_state(y, y_pred2)

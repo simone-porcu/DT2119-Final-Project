@@ -65,6 +65,7 @@ def main():
 
     # prepare data
     x_train_labeled, x_train_unlabeled, y_train_labeled, x_val, y_val = get_data(dataset_path, seed=config.seed)
+    _, evaluation_mapping, _ = timit.get_phone_mapping()
 
     # prepare model
     model = DualStudent(
@@ -91,6 +92,7 @@ def main():
         batch_size=config.batch_size,
         checkpoints_path=checkpoints_path,
         logs_path=logs_path,
+        evaluation_mapping=evaluation_mapping,
         seed=config.seed
     )
     model.save_weights(model_path)
