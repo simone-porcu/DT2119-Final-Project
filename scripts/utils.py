@@ -34,7 +34,7 @@ class Config:
             self.seed = SEED
             self.padding_value = PADDING_VALUE
         else:
-            aux = model_name.split('_')
+            aux = model_name.split('-')
             self.version = aux[0]
             self.n_hidden_layers = aux[1]
             self.n_units = aux[2]
@@ -49,17 +49,17 @@ class Config:
 
     def __str__(self):
         return (
-            str(self.version) + "_" +
-            str(self.n_hidden_layers) + "hiddenlayers_" +
-            str(self.n_units) + "units_" +
-            str(self.n_epochs) + "epochs_" +
-            str(self.batch_size) + "bs_" +
-            str(self.unlabeled_percentage) + "perc_" +
-            str(self.optimizer) + "_" +
-            str(self.consistency_scale) + "cs_" +
-            str(self.stabilization_scale) + "ss_" +
-            str(self.epsilon) + "epsilon_" +
-            str(self.sigma) + "sigma"
+            str(self.version) + '-' +
+            str(self.n_hidden_layers) + 'hiddenlayers-' +
+            str(self.n_units) + 'units-' +
+            str(self.n_epochs) + 'epochs-' +
+            str(self.batch_size) + 'bs-' +
+            str(self.unlabeled_percentage) + 'perc-' +
+            str(self.optimizer) + '-' +
+            str(self.consistency_scale) + 'cs-' +
+            str(self.stabilization_scale) + 'ss-' +
+            str(self.epsilon) + 'epsilon-' +
+            str(self.sigma) + 'sigma'
         )
 
 

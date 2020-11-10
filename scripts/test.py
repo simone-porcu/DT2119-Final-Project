@@ -44,11 +44,7 @@ def main():
         n_classes=get_number_of_classes(),
         n_hidden_layers=config.n_hidden_layers,
         n_units=config.n_units,
-        consistency_scale=config.consistency_scale,
-        stabilization_scale=config.stabilization_scale,
-        epsilon=config.epsilon,
-        padding_value=config.padding_value,
-        sigma=config.sigma,
+        padding_value=PADDING_VALUE,
         version=config.version
     )
     model.load_weights(model_path)
