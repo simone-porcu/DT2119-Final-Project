@@ -29,30 +29,30 @@ class TimitTestCase(unittest.TestCase):
         self.assertEqual(info['sentence_number'], 415)
         self.assertEqual(info['file_type'], '.wav')
 
-    # def test_load_data(self):
-    #     dataset_path = get_root_dir() / 'data' / 'timit'
-    #     for force_preprocess in [True, False]:
-    #         train_set, test_set = load_data(dataset_path, force_preprocess=force_preprocess)
-    #
-    #         # number of utterances
-    #         self.assertEqual(len(train_set), 3696)
-    #         self.assertEqual(len(test_set), 192)
-    #
-    #         # number of speakers
-    #         self.assertEqual(len({utterance['speaker_id'] for utterance in train_set}), 462)
-    #         self.assertEqual(len({utterance['speaker_id'] for utterance in test_set}), 24)
-    #
-    #         # number of frames
-    #         self.assertEqual(sum([len(utterance['features']) for utterance in train_set]), 1104675)
-    #         self.assertEqual(sum([len(utterance['features']) for utterance in test_set]), 56623)
-    #         self.assertEqual(sum([len(utterance['labels']) for utterance in train_set]), 1104675)
-    #         self.assertEqual(sum([len(utterance['labels']) for utterance in test_set]), 56623)
-    #
-    #         # shape of features and labels
-    #         for utterance in np.concatenate((train_set, test_set)):
-    #             self.assertEqual(len(utterance['features'].shape), 2)
-    #             self.assertEqual(len(utterance['labels'].shape), 1)
-    #             self.assertEqual(utterance['features'].shape[1], 39)
+    def test_load_data(self):
+        dataset_path = get_root_dir() / 'data' / 'timit'
+        for force_preprocess in [True, False]:
+            train_set, test_set = load_data(dataset_path, force_preprocess=force_preprocess)
+
+            # number of utterances
+            self.assertEqual(len(train_set), 3696)
+            self.assertEqual(len(test_set), 192)
+
+            # number of speakers
+            self.assertEqual(len({utterance['speaker_id'] for utterance in train_set}), 462)
+            self.assertEqual(len({utterance['speaker_id'] for utterance in test_set}), 24)
+
+            # number of frames
+            self.assertEqual(sum([len(utterance['features']) for utterance in train_set]), 1104675)
+            self.assertEqual(sum([len(utterance['features']) for utterance in test_set]), 56623)
+            self.assertEqual(sum([len(utterance['labels']) for utterance in train_set]), 1104675)
+            self.assertEqual(sum([len(utterance['labels']) for utterance in test_set]), 56623)
+
+            # shape of features and labels
+            for utterance in np.concatenate((train_set, test_set)):
+                self.assertEqual(len(utterance['features'].shape), 2)
+                self.assertEqual(len(utterance['labels'].shape), 1)
+                self.assertEqual(utterance['features'].shape[1], 39)
 
     def test_split_validation(self):
         dataset_path = get_root_dir() / 'data' / 'timit'

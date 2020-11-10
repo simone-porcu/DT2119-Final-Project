@@ -145,6 +145,11 @@ class DualStudent(Model):
         else:
             raise ValueError('Invalid student')
 
+    def build(self, input_shape):
+        super(DualStudent, self).build(input_shape)
+        self.student1.build(input_shape)
+        self.student2.build(input_shape)
+
     def train(self, x_labeled, x_unlabeled, y_labeled, x_val=None, y_val=None, n_epochs=10, batch_size=32, shuffle=True,
               evaluation_mapping=None, logs_path=None, checkpoints_path=None, seed=None):
         """
@@ -176,6 +181,11 @@ class DualStudent(Model):
             np.random.seed(seed)
             tf.random.set_seed(seed)
 
+        # show summary
+        self.build(input_shape=(None,) + x_labeled[0].shape)
+        self.student1.summary()
+        self.student2.summary()
+
         # setup for logs and checkpoints
         train_summary_writer = tf.summary.create_file_writer(logs_path)
         checkpoint = None
@@ -185,9 +195,9 @@ class DualStudent(Model):
 
             # if file, restore the checkpoint and set path for further checkpoints to parent
             if checkpoints_path.is_file():
-                self.build(input_shape=(None,) + x_labeled.shape[1:])
                 checkpoint.restore(tf.train.latest_checkpoint(str(checkpoints_path)))
                 checkpoints_path = checkpoints_path.parent
+            checkpoints_path = checkpoints_path / 'ckpt'
             checkpoints_path = str(checkpoints_path)
 
         # compute batch sizes

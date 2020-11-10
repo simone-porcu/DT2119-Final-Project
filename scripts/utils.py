@@ -36,30 +36,30 @@ class Config:
         else:
             aux = model_name.split('-')
             self.version = aux[0]
-            self.n_hidden_layers = aux[1]
-            self.n_units = aux[2]
-            self.n_epochs = aux[3]
-            self.batch_size = aux[4]
-            self.unlabeled_percentage = aux[5]
+            self.n_hidden_layers = int(aux[1])
+            self.n_units = int(aux[2])
+            self.n_epochs = int(aux[3])
+            self.batch_size = int(aux[4])
+            self.unlabeled_percentage = float(aux[5])
             self.optimizer = aux[6]
-            self.consistency_scale = aux[7]
-            self.stabilization_scale = aux[8]
-            self.epsilon = aux[9]
-            self.sigma = aux[10]
+            self.consistency_scale = float(aux[7])
+            self.stabilization_scale = float(aux[8])
+            self.epsilon = float(aux[9])
+            self.sigma = float(aux[10])
 
     def __str__(self):
         return (
             str(self.version) + '-' +
-            str(self.n_hidden_layers) + 'hiddenlayers-' +
-            str(self.n_units) + 'units-' +
-            str(self.n_epochs) + 'epochs-' +
-            str(self.batch_size) + 'bs-' +
-            str(self.unlabeled_percentage) + 'perc-' +
+            str(self.n_hidden_layers) + '-' +
+            str(self.n_units) + '-' +
+            str(self.n_epochs) + '-' +
+            str(self.batch_size) + '-' +
+            str(self.unlabeled_percentage) + '-' +
             str(self.optimizer) + '-' +
-            str(self.consistency_scale) + 'cs-' +
-            str(self.stabilization_scale) + 'ss-' +
-            str(self.epsilon) + 'epsilon-' +
-            str(self.sigma) + 'sigma'
+            str(self.consistency_scale) + '-' +
+            str(self.stabilization_scale) + '-' +
+            str(self.epsilon) + '-' +
+            str(self.sigma)
         )
 
 

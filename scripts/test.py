@@ -47,11 +47,12 @@ def main():
         padding_value=PADDING_VALUE,
         version=config.version
     )
+    model.build(input_shape=(None,) + x_test[0].shape)      # necessary, otherwise load_weights() fails
     model.load_weights(model_path)
 
     # evaluate model
     results = model.test(x_test, y_test, evaluation_mapping=evaluation_mapping)
-    with open(output_path / 'performance.txt') as f:
+    with open(output_path / 'performance.txt', mode='w') as f:
         for k, v in results.items():
             output = f'{k}: {v}'
             print(output)
