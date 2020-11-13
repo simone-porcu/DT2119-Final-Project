@@ -20,11 +20,11 @@ def get_command_line_arguments():
     return parser.parse_args()
 
 
-def get_data(dataset_path, seed=None):
+def get_data(dataset_path, normalization, unlabeled_percentage, seed=None):
     train_set, _ = timit.load_data(dataset_path)
     train_set, val_set = timit.split_validation(train_set, seed=seed)
-    train_set, val_set = normalize(train_set, val_set)
-    train_set = unlabel(train_set, 0.7, seed=seed)
+    train_set, val_set = normalize(train_set, val_set, mode=normalization)
+    train_set = unlabel(train_set, unlabeled_percentage, seed=seed)
 
     x_train_labeled = np.array([utterance['features'] for utterance in train_set if 'labels' in utterance])
     x_train_unlabeled = np.array([utterance['features'] for utterance in train_set if 'labels' not in utterance])
@@ -74,9 +74,11 @@ def main():
         n_units=config.n_units,
         consistency_scale=config.consistency_scale,
         stabilization_scale=config.stabilization_scale,
-        epsilon=config.epsilon,
+        xi=config.xi,
         padding_value=config.padding_value,
         sigma=config.sigma,
+        schedule=config.schedule,
+        schedule_length=config.schedule_length,
         version=config.version
     )
 

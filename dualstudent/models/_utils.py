@@ -1,19 +1,59 @@
 import numpy as np
 
 
-def sigmoid_rampup(current, rampup_length):
+def sigmoid_rampup(current, length):
     """
     Exponential rampup.
 
     Source: https://github.com/ZHKKKe/DualStudent/blob/5e0c010c4cb7cafe0aff76f6511a22511c8e8ae8/third_party/mean_teacher/ramps.py#L19
     Original proposal: https://arxiv.org/abs/1610.02242
+
+    :param current: integer or numpy array, current epoch
+    :param length: integer or numpy array, length of ramp (in epochs)
+    :return: float, sigmoid value in range [0,1]
     """
-    if rampup_length == 0:
+    if length == 0:
         return 1.0
     else:
-        current = np.clip(current, 0.0, rampup_length)
-        phase = 1.0 - current / rampup_length
-        return float(np.exp(-5.0 * phase * phase))
+        current = np.clip(current, 0.0, length)
+        phase = 1.0 - current / length
+        return np.exp(-5.0 * phase * phase)
+
+
+def cosine_cycling(current, length):
+    """
+    Cosine schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
+    periodic sinusoidal trend in the range [0.5, 1].
+
+    :param current: integer, current epoch
+    :param length: integer, length of cycle (in epochs)
+    :return: float, sinusoidal value as described above
+    """
+    return np.where(
+        current < length/2,
+        1 / 2 + np.cos(current / length * 2 * np.pi + np.pi) / 2,
+        3 / 4 + np.cos((current % length) / length * 2 * np.pi + np.pi) / 4
+    )
+
+
+def linear_cycling(current, length):
+    """
+    Triangular schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
+    periodic linear trend in the range [0.5, 1].
+
+    :param current: integer, current epoch
+    :param length: integer, length of cycle (in epochs)
+    :return: float, linear value as described above
+    """
+    return np.where(
+        np.remainder(current, length) < length/2,
+        np.where(
+            current < length / 2,
+            np.remainder(current, length / 2) / (length / 2),
+            np.remainder(current, length / 2) / length + 0.5
+        ),
+        (1 - np.remainder(current, length) / length) + 0.5,
+    )
 
 
 def select_batch(data, batch_idx, batch_size):

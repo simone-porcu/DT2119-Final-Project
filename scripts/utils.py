@@ -11,8 +11,11 @@ N_HIDDEN_LAYERS = 2
 N_UNITS = 3
 CONSISTENCY_SCALE = 0           # weight of consistency constraint
 STABILIZATION_SCALE = 0         # weight of stabilization constraint
-EPSILON = 0.6                   # confidence threshold
+XI = 0.6                        # confidence threshold
 SIGMA = 0.01                    # standard deviation for noisy augmentation
+SCHEDULE = 'linear_cycling'     # one of 'rampup', 'linear_cycling', 'cosine_cycling'
+SCHEDULE_LENGTH = 10
+NORMALIZATION = 'speaker'       # one of 'full', 'speaker', 'utterance'
 SEED = 1
 PADDING_VALUE = np.inf
 
@@ -29,8 +32,11 @@ class Config:
             self.optimizer = OPTIMIZER
             self.consistency_scale = CONSISTENCY_SCALE
             self.stabilization_scale = STABILIZATION_SCALE
-            self.epsilon = EPSILON
+            self.xi = XI
             self.sigma = SIGMA
+            self.schedule = SCHEDULE
+            self.schedule_length = SCHEDULE_LENGTH
+            self.normalization = NORMALIZATION
             self.seed = SEED
             self.padding_value = PADDING_VALUE
         else:
@@ -44,22 +50,30 @@ class Config:
             self.optimizer = aux[6]
             self.consistency_scale = float(aux[7])
             self.stabilization_scale = float(aux[8])
-            self.epsilon = float(aux[9])
+            self.xi = float(aux[9])
             self.sigma = float(aux[10])
+            self.schedule = aux[11]
+            self.schedule_length = int(aux[12])
+            self.normalization = aux[13]
+            self.seed = aux[14]
 
     def __str__(self):
         return (
-            str(self.version) + '-' +
-            str(self.n_hidden_layers) + '-' +
-            str(self.n_units) + '-' +
-            str(self.n_epochs) + '-' +
-            str(self.batch_size) + '-' +
-            str(self.unlabeled_percentage) + '-' +
-            str(self.optimizer) + '-' +
-            str(self.consistency_scale) + '-' +
-            str(self.stabilization_scale) + '-' +
-            str(self.epsilon) + '-' +
-            str(self.sigma)
+                str(self.version) + '-' +
+                str(self.n_hidden_layers) + '-' +
+                str(self.n_units) + '-' +
+                str(self.n_epochs) + '-' +
+                str(self.batch_size) + '-' +
+                str(self.unlabeled_percentage) + '-' +
+                str(self.optimizer) + '-' +
+                str(self.consistency_scale) + '-' +
+                str(self.stabilization_scale) + '-' +
+                str(self.xi) + '-' +
+                str(self.sigma) + '-' +
+                str(self.schedule) + '-' +
+                str(self.schedule_length) + '-' +
+                str(self.normalization) + '-' +
+                str(self.seed)
         )
 
 

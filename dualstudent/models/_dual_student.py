@@ -9,7 +9,7 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy, MeanSquaredEr
 from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean, Accuracy
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from dualstudent.metrics import PhoneErrorRate
-from dualstudent.models._utils import sigmoid_rampup, select_batch, map_labels
+from dualstudent.models._utils import sigmoid_rampup, linear_cycling, cosine_cycling, select_batch, map_labels
 
 
 class DualStudent(Model):
@@ -28,7 +28,8 @@ class DualStudent(Model):
     """
 
     def __init__(self, n_classes, n_hidden_layers=3, n_units=96, consistency_loss='mse', consistency_scale=10,
-                 stabilization_scale=100, epsilon=0.6, padding_value=0., sigma=0.01, version='mono_directional'):
+                 stabilization_scale=100, xi=0.6, padding_value=0., sigma=0.01, schedule='rampup',
+                 schedule_length=5, version='mono_directional'):
         """
         Constructs a Dual Student model.
 
@@ -38,9 +39,11 @@ class DualStudent(Model):
         :param consistency_loss: one of 'mse', 'kl'
         :param consistency_scale: maximum value of weight for consistency constraint
         :param stabilization_scale: maximum value of weight for stabilization constraint
-        :param epsilon: threshold for stable sample
+        :param xi: threshold for stable sample
         :param padding_value: value used to pad input sequences (used as mask_value for Masking layer)
         :param sigma: standard deviation for noisy augmentation
+        :param schedule: type of schedule for lambdas, one of 'rampup', 'linear_cycling', 'cosine_cycling'
+        :param schedule_length:
         :param version: one of:
             - 'mono_directional': both students have mono-directional LSTM layers
             - 'bidirectional: both students have bidirectional LSTM layers
@@ -53,13 +56,25 @@ class DualStudent(Model):
         self.padding_value = padding_value
         self.n_units = n_units
         self.n_hidden_layers = n_hidden_layers
-        self.epsilon = epsilon
+        self.xi = xi
         self.consistency_scale = consistency_scale
         self.stabilization_scale = stabilization_scale
         self.sigma = sigma
         self.version = version
+        self.schedule = schedule
+        self.schedule_length = schedule_length
         self._lambda1 = None
         self._lambda2 = None
+
+        # schedule for lambdas
+        if schedule == 'rampup':
+            self.schedule_fn = sigmoid_rampup
+        elif schedule == 'linear_cycling':
+            self.schedule_fn = linear_cycling
+        elif schedule == 'cosine_cycling':
+            self.schedule_fn = cosine_cycling
+        else:
+            raise ValueError('Invalid schedule')
 
         # loss
         self._loss_cls = SparseCategoricalCrossentropy()            # classification loss
@@ -208,8 +223,8 @@ class DualStudent(Model):
         # training loop
         for epoch in trange(n_epochs, desc='epochs'):
             # ramp up lambda1 and lambda2
-            self._lambda1 = self.consistency_scale * sigmoid_rampup(epoch, rampup_length=5)
-            self._lambda2 = self.stabilization_scale * sigmoid_rampup(epoch, rampup_length=5)
+            self._lambda1 = self.consistency_scale * self.schedule_fn(epoch, self.schedule_length, mode=self.schedule)
+            self._lambda2 = self.stabilization_scale * self.schedule_fn(epoch, self.schedule_length, mode=self.schedule)
 
             # shuffle training set
             if shuffle:
@@ -306,9 +321,11 @@ class DualStudent(Model):
 
         # forward pass
         with tf.GradientTape(persistent=True) as tape:
-            # predict augmented labeled samples (for classification constraint)
-            prob1_labeled = self(B1_labeled, training=True, student='student1')
-            prob2_labeled = self(B2_labeled, training=True, student='student2')
+            # predict augmented labeled samples (for classification and consistency constraint)
+            prob1_labeled_B1 = self.student1(B1_labeled, training=True)
+            prob1_labeled_B2 = self.student1(B2_labeled, training=True)
+            prob2_labeled_B1 = self.student2(B1_labeled, training=True)
+            prob2_labeled_B2 = self.student2(B2_labeled, training=True)
 
             # predict augmented unlabeled samples (for consistency and stabilization constraints)
             prob1_unlabeled_B1 = self.student1(B1_unlabeled, training=True)
@@ -317,20 +334,28 @@ class DualStudent(Model):
             prob2_unlabeled_B2 = self.student2(B2_unlabeled, training=True)
 
             # remove padding
-            prob1_labeled = prob1_labeled[mask_labeled]
-            prob2_labeled = prob2_labeled[mask_labeled]
+            prob1_labeled_B1 = prob1_labeled_B1[mask_labeled]
+            prob1_labeled_B2 = prob1_labeled_B2[mask_labeled]
+            prob2_labeled_B1 = prob2_labeled_B1[mask_labeled]
+            prob2_labeled_B2 = prob2_labeled_B2[mask_labeled]
             prob1_unlabeled_B1 = prob1_unlabeled_B1[mask_unlabeled]
             prob1_unlabeled_B2 = prob1_unlabeled_B2[mask_unlabeled]
             prob2_unlabeled_B1 = prob2_unlabeled_B1[mask_unlabeled]
             prob2_unlabeled_B2 = prob2_unlabeled_B2[mask_unlabeled]
 
             # compute classification losses
-            L1_cls = self._loss_cls(y_labeled, prob1_labeled)
-            L2_cls = self._loss_cls(y_labeled, prob2_labeled)
+            L1_cls = self._loss_cls(y_labeled, prob1_labeled_B1)
+            L2_cls = self._loss_cls(y_labeled, prob2_labeled_B2)
+
+            # concatenate labeled and unlabeled probability predictions (for consistency loss)
+            prob1_labeled_unlabeled_B1 = tf.concat([prob1_labeled_B1, prob1_unlabeled_B1], axis=0)
+            prob1_labeled_unlabeled_B2 = tf.concat([prob1_labeled_B2, prob1_unlabeled_B2], axis=0)
+            prob2_labeled_unlabeled_B1 = tf.concat([prob2_labeled_B1, prob2_unlabeled_B1], axis=0)
+            prob2_labeled_unlabeled_B2 = tf.concat([prob2_labeled_B2, prob2_unlabeled_B2], axis=0)
 
             # compute consistency losses
-            L1_con = self._loss_con(prob1_unlabeled_B1, prob1_unlabeled_B2)
-            L2_con = self._loss_con(prob2_unlabeled_B1, prob2_unlabeled_B2)
+            L1_con = self._loss_con(prob1_labeled_unlabeled_B1, prob1_labeled_unlabeled_B2)
+            L2_con = self._loss_con(prob2_labeled_unlabeled_B1, prob2_labeled_unlabeled_B2)
 
             # prediction
             P1_unlabeled_B1 = tf.argmax(prob1_unlabeled_B1, axis=-1)
@@ -346,9 +371,9 @@ class DualStudent(Model):
 
             # stable samples (masks to index probabilities)
             R1 = tf.logical_and(P1_unlabeled_B1 == P1_unlabeled_B2,
-                                tf.logical_or(M1_unlabeled_B1 > self.epsilon, M1_unlabeled_B2 > self.epsilon))
+                                tf.logical_or(M1_unlabeled_B1 > self.xi, M1_unlabeled_B2 > self.xi))
             R2 = tf.logical_and(P2_unlabeled_B1 == P2_unlabeled_B2,
-                                tf.logical_or(M2_unlabeled_B1 > self.epsilon, M2_unlabeled_B2 > self.epsilon))
+                                tf.logical_or(M2_unlabeled_B1 > self.xi, M2_unlabeled_B2 > self.xi))
             R12 = tf.logical_and(R1, R2)
 
             # stabilities
@@ -386,8 +411,8 @@ class DualStudent(Model):
         self._loss2_con.update_state(L2_con)
         self._loss1_sta.update_state(L1_sta)
         self._loss2_sta.update_state(L2_sta)
-        self._acc1.update_state(y_labeled, prob1_labeled)
-        self._acc2.update_state(y_labeled, prob2_labeled)
+        self._acc1.update_state(y_labeled, prob1_labeled_B1)
+        self._acc2.update_state(y_labeled, prob2_labeled_B2)
 
     def test(self, x, y, batch_size=32, evaluation_mapping=None):
         """
