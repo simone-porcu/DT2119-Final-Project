@@ -5,7 +5,7 @@ def sigmoid_rampup(current, length):
     """
     Exponential rampup.
 
-    Source: https://github.com/ZHKKKe/DualStudent/blob/5e0c010c4cb7cafe0aff76f6511a22511c8e8ae8/third_party/mean_teacher/ramps.py#L19
+    Source: https://github.com/ZHKKKe/DualStudent/
     Original proposal: https://arxiv.org/abs/1610.02242
 
     :param current: integer or numpy array, current epoch
@@ -20,15 +20,16 @@ def sigmoid_rampup(current, length):
         return np.exp(-5.0 * phase * phase)
 
 
-def cosine_cycling(current, length):
+def sinusoidal_cycling(current, length):
     """
     Cosine schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
     periodic sinusoidal trend in the range [0.5, 1].
 
     :param current: integer, current epoch
-    :param length: integer, length of cycle (in epochs)
+    :param length: integer, length of half cycle (in epochs)
     :return: float, sinusoidal value as described above
     """
+    length *= 2
     return np.where(
         current < length/2,
         1 / 2 + np.cos(current / length * 2 * np.pi + np.pi) / 2,
@@ -42,9 +43,10 @@ def linear_cycling(current, length):
     periodic linear trend in the range [0.5, 1].
 
     :param current: integer, current epoch
-    :param length: integer, length of cycle (in epochs)
+    :param length: integer, length of half cycle (in epochs)
     :return: float, linear value as described above
     """
+    length *= 2
     return np.where(
         np.remainder(current, length) < length/2,
         np.where(
@@ -81,7 +83,7 @@ def map_labels(labels, mapping=None):
     :return: numpy array of shape (n_utterances, n_frames), mapped labels
     """
     if mapping is not None:
-        mapping = mapping[0]
+        mapping = mapping.tolist()
         labels = np.copy(labels)
         for i in range(labels.shape[0]):
             for j in range(labels.shape[1]):

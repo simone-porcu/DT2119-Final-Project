@@ -9,7 +9,7 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy, MeanSquaredEr
 from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean, Accuracy
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from dualstudent.metrics import PhoneErrorRate
-from dualstudent.models._utils import sigmoid_rampup, linear_cycling, cosine_cycling, select_batch, map_labels
+from dualstudent.models._utils import sigmoid_rampup, linear_cycling, sinusoidal_cycling, select_batch, map_labels
 
 
 class DualStudent(Model):
@@ -72,7 +72,7 @@ class DualStudent(Model):
         elif schedule == 'linear_cycling':
             self.schedule_fn = linear_cycling
         elif schedule == 'cosine_cycling':
-            self.schedule_fn = cosine_cycling
+            self.schedule_fn = sinusoidal_cycling
         else:
             raise ValueError('Invalid schedule')
 
@@ -223,8 +223,8 @@ class DualStudent(Model):
         # training loop
         for epoch in trange(n_epochs, desc='epochs'):
             # ramp up lambda1 and lambda2
-            self._lambda1 = self.consistency_scale * self.schedule_fn(epoch, self.schedule_length, mode=self.schedule)
-            self._lambda2 = self.stabilization_scale * self.schedule_fn(epoch, self.schedule_length, mode=self.schedule)
+            self._lambda1 = self.consistency_scale * self.schedule_fn(epoch, self.schedule_length)
+            self._lambda2 = self.stabilization_scale * self.schedule_fn(epoch, self.schedule_length)
 
             # shuffle training set
             if shuffle:
