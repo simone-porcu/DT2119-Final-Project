@@ -54,6 +54,7 @@ def generate_grid_possibilities():
 
     # generate all possibilities
     possibilities = list(it.product(consistency_loss, schedule, sigma, consistency_scale, stabilization_scale, xi))
+    possibilities = sorted(possibilities)       # to have same order for different runs (needed to split up the work)
     return possibilities
 
 
