@@ -42,7 +42,7 @@ class DualStudent(Model):
         :param xi: threshold for stable sample
         :param padding_value: value used to pad input sequences (used as mask_value for Masking layer)
         :param sigma: standard deviation for noisy augmentation
-        :param schedule: type of schedule for lambdas, one of 'rampup', 'linear_cycling', 'cosine_cycling'
+        :param schedule: type of schedule for lambdas, one of 'rampup', 'linear_cycling', 'sinusoidal_cycling'
         :param schedule_length:
         :param version: one of:
             - 'mono_directional': both students have mono-directional LSTM layers
@@ -71,7 +71,7 @@ class DualStudent(Model):
             self.schedule_fn = sigmoid_rampup
         elif schedule == 'linear_cycling':
             self.schedule_fn = linear_cycling
-        elif schedule == 'cosine_cycling':
+        elif schedule == 'sinusoidal_cycling':
             self.schedule_fn = sinusoidal_cycling
         else:
             raise ValueError('Invalid schedule')

@@ -1,6 +1,3 @@
-import numpy as np
-
-
 def get_number_of_frames(n_samples, sample_rate, win_len, win_shift):
     """
     Returns the number of frames for which the window is fully contained.

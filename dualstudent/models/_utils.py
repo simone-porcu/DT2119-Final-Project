@@ -22,7 +22,7 @@ def sigmoid_rampup(current, length):
 
 def sinusoidal_cycling(current, length):
     """
-    Cosine schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
+    Sinusoidal schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
     periodic sinusoidal trend in the range [0.5, 1].
 
     :param current: integer, current epoch
