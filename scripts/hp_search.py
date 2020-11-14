@@ -1,7 +1,9 @@
 import argparse
 import numpy as np
 import itertools as it
+import tensorflow as tf
 from pathlib import Path
+from tensorboard.plugins.hparams import api as hp
 from utils import Config, get_number_of_classes, N_HIDDEN_LAYERS, N_UNITS, PADDING_VALUE
 from train import get_data, get_optimizer
 from dualstudent.datasets import timit
@@ -96,7 +98,6 @@ def get_my_part(possibilities):
 
 
 def run_possibilities(dataset_path, logs_path, possibilities):
-    # prepare data
     x_train_labeled, x_train_unlabeled, y_train_labeled, x_val, y_val = get_data(
         dataset_path=dataset_path,
         normalization=NORMALIZATION,
@@ -106,17 +107,19 @@ def run_possibilities(dataset_path, logs_path, possibilities):
     _, evaluation_mapping, _ = timit.get_phone_mapping()
     n_classes = get_number_of_classes()
 
-    # run combinations
     for consistency_loss, schedule, sigma, consistency_scale, stabilization_scale, xi in possibilities:
-        print(
-            'Running with: '
-            f'consistency_loss={consistency_loss}, '
-            f'schedule={schedule}, '
-            f'sigma={sigma}, '
-            f'consistency_scale={consistency_scale}, '
-            f'stabilization_scale={stabilization_scale}, '
-            f'xi={xi}'
-        )
+        hparams = {
+            'consistency_loss': consistency_loss,
+            'schedule': schedule,
+            'sigma': sigma,
+            'consistency_scale': consistency_scale,
+            'stabilization_scale': stabilization_scale,
+            'xi': xi
+        }
+
+        for k, v in hparams.items():
+            print(f'{k}={v}, ', end='')
+        print()
 
         config = Config(
             version='mono_directional',
@@ -139,7 +142,7 @@ def run_possibilities(dataset_path, logs_path, possibilities):
 
         logs_path_ = logs_path / str(config)
         if logs_path_.is_dir():     # skip what already done (e.g. in case of crashes)
-            print(config, 'already done, skipping...')
+            print('already done, skipping...')
             continue
         logs_path_.mkdir(parents=True)
         logs_path_ = str(logs_path_)
@@ -165,14 +168,22 @@ def run_possibilities(dataset_path, logs_path, possibilities):
             x_labeled=x_train_labeled,
             x_unlabeled=x_train_unlabeled,
             y_labeled=y_train_labeled,
-            x_val=x_val,
-            y_val=y_val,
             n_epochs=config.n_epochs,
             batch_size=config.batch_size,
-            logs_path=logs_path_,
-            evaluation_mapping=evaluation_mapping,
             seed=config.seed
         )
+
+        results = model.test(
+            x=x_val,
+            y=y_val,
+            batch_size=config.batch_size,
+            evaluation_mapping=evaluation_mapping
+        )
+
+        with tf.summary.create_file_writer(logs_path_).as_default():
+            hp.hparams(hparams)
+            for k, v in results.items():
+                tf.summary.scalar(k, v, step=N_EPOCHS)
 
 
 def get_command_line_arguments():

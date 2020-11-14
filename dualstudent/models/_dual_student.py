@@ -202,8 +202,10 @@ class DualStudent(Model):
         self.student2.summary()
 
         # setup for logs and checkpoints
-        train_summary_writer = tf.summary.create_file_writer(logs_path)
+        train_summary_writer = None
         checkpoint = None
+        if logs_path is not None:
+            train_summary_writer = tf.summary.create_file_writer(logs_path)
         if checkpoints_path is not None:
             checkpoints_path = Path(checkpoints_path)
             checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self)
@@ -275,14 +277,19 @@ class DualStudent(Model):
                 val_metrics = self.test(x_val, y_val, evaluation_mapping=evaluation_mapping)
                 metrics['val'] = val_metrics
 
-            # save logs and print metrics
-            with train_summary_writer.as_default():
-                for dataset, metrics_ in metrics.items():
-                    print(f'Epoch {epoch + 1} - ', dataset, ' - ', sep='', end='')
-                    for k, v in metrics_.items():
-                        print(f'{k}: {v}, ', end='')
-                        tf.summary.scalar(k, v, step=epoch)
-                    print()
+            # print metrics
+            for dataset, metrics_ in metrics.items():
+                print(f'Epoch {epoch + 1} - ', dataset, ' - ', sep='', end='')
+                for k, v in metrics_.items():
+                    print(f'{k}: {v}, ', end='')
+                print()
+
+            # save logs
+            if train_summary_writer is not None:
+                with train_summary_writer.as_default():
+                    for dataset, metrics_ in metrics.items():
+                        for k, v in metrics_.items():
+                            tf.summary.scalar(k, v, step=epoch)
 
             # save checkpoint
             if checkpoint is not None:
@@ -428,7 +435,7 @@ class DualStudent(Model):
         :return: dictionary {metric_name -> value}
         """
         # test batch by batch
-        n_batches = int(len(x) / batch_size)
+        n_batches = int(len(x) / batch_size) + (1 if len(x) % batch_size > 0 else 0)
         for i in trange(n_batches, desc='test batches'):
             # select batch
             x_batch = select_batch(x, i, batch_size)
@@ -482,9 +489,14 @@ class DualStudent(Model):
         y_train_phones = tf.identity(y)
 
         # map labels to set of test phones
-        y = tf.numpy_function(map_labels, [y_train_phones, evaluation_mapping], [tf.float32])
-        y_pred1 = tf.numpy_function(map_labels, [y_pred1_train_phones, evaluation_mapping], [tf.float32])
-        y_pred2 = tf.numpy_function(map_labels, [y_pred2_train_phones, evaluation_mapping], [tf.float32])
+        if evaluation_mapping is not None:
+            y = tf.numpy_function(map_labels, [y_train_phones, evaluation_mapping], [tf.float32])
+            y_pred1 = tf.numpy_function(map_labels, [y_pred1_train_phones, evaluation_mapping], [tf.float32])
+            y_pred2 = tf.numpy_function(map_labels, [y_pred2_train_phones, evaluation_mapping], [tf.float32])
+        else:
+            y = y_train_phones
+            y_pred1 = y_pred1_train_phones
+            y_pred2 = y_pred2_train_phones
 
         # update phone error rate
         self._test_per1.update_state(y, y_pred1, mask)
