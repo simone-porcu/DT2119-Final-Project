@@ -1,0 +1,20 @@
+===rampup===
+stabilization_scale = 20
+consistency_scale = 1
+sigma = 0.3
+xi = 0.5
+consistency_loss = kl
+
+===sinusoidal_cycling===
+stabilization_scale = 20
+consistency_scale = 400
+sigma = 0.3
+xi = 0.3
+consistency_loss = mse
+
+===triangular_cycling===
+stabilization_scale = 20
+consistency_scale = 1
+sigma = 0.3
+xi = 0.3
+consistency_loss = kl

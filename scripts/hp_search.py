@@ -16,24 +16,24 @@ WHO_AM_I = 'Franco Ruggeri'
 CONSISTENCY_LOSSES = ['mse', 'kl']
 SCHEDULES = ['rampup', 'sinusoidal_cycling', 'triangular_cycling']
 
-SIGMA_N_VALUES = 3                  # only for grid search
-SIGMA_MIN = 0.1                     # linear space
+SIGMA_N_VALUES = 4                  # only for grid search
+SIGMA_MIN = 0.01                    # linear space
 SIGMA_MAX = 1
 
-CONSISTENCY_SCALE_N_VALUES = 3      # only for grid search
+CONSISTENCY_SCALE_N_VALUES = 4      # only for grid search
 CONSISTENCY_SCALE_MIN = 0           # log space
-CONSISTENCY_SCALE_MAX = 2
+CONSISTENCY_SCALE_MAX = 4
 
-STABILIZATION_SCALE_N_VALUES = 3    # only for grid search
-STABILIZATION_SCALE_MIN = 1         # log space
-STABILIZATION_SCALE_MAX = 3
+STABILIZATION_SCALE_N_VALUES = 4    # only for grid search
+STABILIZATION_SCALE_MIN = 0         # log space
+STABILIZATION_SCALE_MAX = 4
 
-XI_N_VALUES = 3                     # only for grid search
-XI_MIN = 0.2                        # linear space
+XI_N_VALUES = 4                     # only for grid search
+XI_MIN = 0.02                       # linear space
 XI_MAX = 0.8
 
 N_TRIALS = 500                      # only for random search
-N_EPOCHS = 1
+N_EPOCHS = 20
 
 # fixed, do not touch here!
 VERSION = 'mono_directional'        # one of 'mono_directional', 'bidirectional', 'imbalanced'
