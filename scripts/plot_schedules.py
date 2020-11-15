@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from dualstudent.models import sigmoid_rampup, sinusoidal_cycling, linear_cycling
+from dualstudent.models import sigmoid_rampup, sinusoidal_cycling, triangular_cycling
 
 
 def plot_schedules(save_path=None):
@@ -14,7 +14,7 @@ def plot_schedules(save_path=None):
     y = sinusoidal_cycling(x, 5)
     plt.plot(x, y, 'orange', label='sinusoidal cycling')
 
-    y = linear_cycling(x, 5)
+    y = triangular_cycling(x, 5)
     plt.plot(x, y, 'red', label='triangular cycling')
 
     plt.xlim([0, 20])

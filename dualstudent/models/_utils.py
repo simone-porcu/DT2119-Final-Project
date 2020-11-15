@@ -37,7 +37,7 @@ def sinusoidal_cycling(current, length):
     )
 
 
-def linear_cycling(current, length):
+def triangular_cycling(current, length):
     """
     Triangular schedule. In the first half cycle, the values increase from 0 to 1, while after that the values follow a
     periodic linear trend in the range [0.5, 1].

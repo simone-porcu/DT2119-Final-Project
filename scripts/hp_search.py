@@ -14,7 +14,7 @@ GROUP_MEMBERS = ['Franco Ruggeri', 'Andrea Caraffa', 'Kevin Dalla Torre Castillo
 WHO_AM_I = 'Franco Ruggeri'
 
 CONSISTENCY_LOSSES = ['mse', 'kl']
-SCHEDULES = ['rampup', 'sinusoidal_cycling', 'linear_cycling']
+SCHEDULES = ['rampup', 'sinusoidal_cycling', 'triangular_cycling']
 
 SIGMA_N_VALUES = 3                  # only for grid search
 SIGMA_MIN = 0.1                     # linear space

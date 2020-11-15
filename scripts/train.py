@@ -22,7 +22,7 @@ CONSISTENCY_SCALE = 0               # weight of consistency constraint
 STABILIZATION_SCALE = 0             # weight of stabilization constraint
 XI = 0.6                            # confidence threshold
 SIGMA = 0.01                        # standard deviation for noisy augmentation
-SCHEDULE = 'linear_cycling'         # one of 'rampup', 'linear_cycling', 'sinusoidal_cycling'
+SCHEDULE = 'triangular_cycling'     # one of 'rampup', 'triangular_cycling', 'sinusoidal_cycling'
 SCHEDULE_LENGTH = 5                 # length of rampup or half cycle
 
 SEED = 1

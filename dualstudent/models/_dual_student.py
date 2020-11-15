@@ -9,7 +9,7 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy, MeanSquaredEr
 from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean, Accuracy
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from dualstudent.metrics import PhoneErrorRate
-from dualstudent.models._utils import sigmoid_rampup, linear_cycling, sinusoidal_cycling, select_batch, map_labels
+from dualstudent.models._utils import sigmoid_rampup, triangular_cycling, sinusoidal_cycling, select_batch, map_labels
 
 
 class DualStudent(Model):
@@ -42,7 +42,7 @@ class DualStudent(Model):
         :param xi: threshold for stable sample
         :param padding_value: value used to pad input sequences (used as mask_value for Masking layer)
         :param sigma: standard deviation for noisy augmentation
-        :param schedule: type of schedule for lambdas, one of 'rampup', 'linear_cycling', 'sinusoidal_cycling'
+        :param schedule: type of schedule for lambdas, one of 'rampup', 'triangular_cycling', 'sinusoidal_cycling'
         :param schedule_length:
         :param version: one of:
             - 'mono_directional': both students have mono-directional LSTM layers
@@ -69,8 +69,8 @@ class DualStudent(Model):
         # schedule for lambdas
         if schedule == 'rampup':
             self.schedule_fn = sigmoid_rampup
-        elif schedule == 'linear_cycling':
-            self.schedule_fn = linear_cycling
+        elif schedule == 'triangular_cycling':
+            self.schedule_fn = triangular_cycling
         elif schedule == 'sinusoidal_cycling':
             self.schedule_fn = sinusoidal_cycling
         else:
