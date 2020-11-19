@@ -6,10 +6,13 @@ from dualstudent.datasets import timit
 from dualstudent.preprocess import normalize
 from dualstudent.models import DualStudent
 
+# tune here!
+NORMALIZATION = 'speaker'
 
-def get_data(dataset_path):
+
+def get_data(dataset_path, normalization):
     train_set, test_set = timit.load_data(dataset_path)
-    _, test_set = normalize(train_set, test_set)
+    _, test_set = normalize(train_set, test_set, mode=normalization)
     x_test = np.array([utterance['features'] for utterance in test_set])
     y_test = np.array([utterance['labels'] for utterance in test_set])
     return x_test, y_test
@@ -17,7 +20,7 @@ def get_data(dataset_path):
 
 def get_command_line_arguments():
     parser = argparse.ArgumentParser(
-        description='Test Dual Student  for Automatic Speech Recognition on TIMIT dataset.',
+        description='Test Dual Student for Automatic Speech Recognition on TIMIT dataset.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('data', type=str, help='path to the TIMIT dataset')
@@ -33,7 +36,7 @@ def main():
     output_path = Path(args.output)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    x_test, y_test = get_data(dataset_path)
+    x_test, y_test = get_data(dataset_path, NORMALIZATION)
     _, evaluation_mapping, _ = timit.get_phone_mapping()
 
     for version in ['mono_directional', 'bidirectional', 'imbalanced']:

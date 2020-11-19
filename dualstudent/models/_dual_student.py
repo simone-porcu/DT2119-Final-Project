@@ -184,11 +184,7 @@ class DualStudent(Model):
         :param evaluation_mapping: dictionary {training label -> test label}, the test phones should be a subset of the
             training phones
         :param logs_path: path where to save logs for TensorBoard
-        :param checkpoints_path: path to a file or a directory:
-            - In case of a file, the checkpoint at that path will be restored and the training will continue from there.
-              New checkpoints will be saved in the parent directory.
-            - In case of a directory, the training will start from scratch and the checkpoints will be saved
-              at that path.
+        :param checkpoints_path: path to a directory. If the directory contains checkpoints, the latest is restored.
         :param seed: seed for the random number generator
         """
         # set seed
@@ -207,15 +203,10 @@ class DualStudent(Model):
         if logs_path is not None:
             train_summary_writer = tf.summary.create_file_writer(logs_path)
         if checkpoints_path is not None:
-            checkpoints_path = Path(checkpoints_path)
             checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self)
-
-            # if file, restore the checkpoint and set path for further checkpoints to parent
-            if checkpoints_path.is_file():
-                checkpoint.restore(tf.train.latest_checkpoint(str(checkpoints_path)))
-                checkpoints_path = checkpoints_path.parent
-            checkpoints_path = checkpoints_path / 'ckpt'
-            checkpoints_path = str(checkpoints_path)
+            checkpoint_path = tf.train.latest_checkpoint(checkpoints_path)
+            if checkpoint_path is not None:
+                checkpoint.restore(checkpoint_path)
 
         # compute batch sizes
         labeled_batch_size = int(len(x_labeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)

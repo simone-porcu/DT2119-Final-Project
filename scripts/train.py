@@ -8,7 +8,6 @@ from dualstudent.datasets import timit
 from dualstudent.preprocess import normalize, unlabel
 from dualstudent.models import DualStudent
 
-
 # tune here!
 N_EPOCHS = 1
 BATCH_SIZE = 100

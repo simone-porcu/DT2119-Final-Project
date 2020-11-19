@@ -1,6 +1,6 @@
 if [ $# -ne 1 ]; then
 	echo "usage: $0 path"
-	exit -1
+	exit 1
 fi
 
 cd $1
