@@ -9,7 +9,7 @@ from dualstudent.preprocess import normalize, unlabel
 from dualstudent.models import DualStudent
 
 # tune here!
-N_EPOCHS = 1
+N_EPOCHS = 20
 BATCH_SIZE = 100
 VERSION = 'mono_directional'        # one of 'mono_directional', 'bidirectional', 'imbalanced'
 NORMALIZATION = 'speaker'           # one of 'full', 'speaker', 'utterance'
@@ -71,11 +71,9 @@ def main():
     model_path = Path(args.model)
     logs_path = model_path / 'logs'
     checkpoints_path = model_path / 'checkpoints'
-    if model_path.is_dir():
-        raise FileExistsError(str(model_path) + ' already exists')
-    model_path.mkdir(parents=True)
-    checkpoints_path.mkdir()
-    logs_path.mkdir()
+    model_path.mkdir(parents=True, exist_ok=True)
+    checkpoints_path.mkdir(exist_ok=True)
+    logs_path.mkdir(exist_ok=True)
     model_path = str(model_path / 'model.h5')
     logs_path = str(logs_path)
 
@@ -134,6 +132,7 @@ def main():
         checkpoints_path=checkpoints_path,
         logs_path=logs_path,
         evaluation_mapping=evaluation_mapping,
+        initial_epoch=0,
         seed=config.seed
     )
 

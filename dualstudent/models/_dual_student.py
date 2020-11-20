@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from pathlib import Path
 from math import ceil
 from tqdm import trange
 from tensorflow.keras import Model, Sequential
@@ -166,7 +167,7 @@ class DualStudent(Model):
         self.student2.build(input_shape)
 
     def train(self, x_labeled, x_unlabeled, y_labeled, x_val=None, y_val=None, n_epochs=10, batch_size=32, shuffle=True,
-              evaluation_mapping=None, logs_path=None, checkpoints_path=None, seed=None):
+              evaluation_mapping=None, logs_path=None, checkpoints_path=None, initial_epoch=0, seed=None):
         """
         Trains the students with both labeled and unlabeled data (semi-supervised learning).
 
@@ -184,7 +185,10 @@ class DualStudent(Model):
         :param evaluation_mapping: dictionary {training label -> test label}, the test phones should be a subset of the
             training phones
         :param logs_path: path where to save logs for TensorBoard
-        :param checkpoints_path: path to a directory. If the directory contains checkpoints, the latest is restored.
+        :param checkpoints_path: path to a directory. If the directory contains checkpoints, the latest checkpoint is
+            restored.
+        :param initial_epoch: int, initial epoch from which to start the training. It can be used together with
+            checkpoints_path to resume the training from a previous run.
         :param seed: seed for the random number generator
         """
         # set seed
@@ -197,16 +201,20 @@ class DualStudent(Model):
         self.student1.summary()
         self.student2.summary()
 
-        # setup for logs and checkpoints
+        # setup for logs
         train_summary_writer = None
-        checkpoint = None
         if logs_path is not None:
             train_summary_writer = tf.summary.create_file_writer(logs_path)
+
+        # setup for checkpoints
+        checkpoint = None
         if checkpoints_path is not None:
             checkpoint = tf.train.Checkpoint(optimizer=self.optimizer, model=self)
             checkpoint_path = tf.train.latest_checkpoint(checkpoints_path)
             if checkpoint_path is not None:
                 checkpoint.restore(checkpoint_path)
+            checkpoint_path = Path(checkpoints_path) / 'ckpt'
+            checkpoint_path = str(checkpoint_path)
 
         # compute batch sizes
         labeled_batch_size = ceil(len(x_labeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
@@ -214,7 +222,7 @@ class DualStudent(Model):
         n_batches = min(ceil(len(x_unlabeled) / unlabeled_batch_size), ceil(len(x_labeled) / labeled_batch_size))
 
         # training loop
-        for epoch in trange(n_epochs, desc='epochs'):
+        for epoch in trange(initial_epoch, n_epochs, desc='epochs'):
             # ramp up lambda1 and lambda2
             self._lambda1 = self.consistency_scale * self.schedule_fn(epoch, self.schedule_length)
             self._lambda2 = self.stabilization_scale * self.schedule_fn(epoch, self.schedule_length)
@@ -284,7 +292,7 @@ class DualStudent(Model):
 
             # save checkpoint
             if checkpoint is not None:
-                checkpoint.save(file_prefix=checkpoints_path)
+                checkpoint.save(file_prefix=checkpoint_path)
 
             # reset metrics
             self._loss1.reset_states()
