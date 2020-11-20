@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from pathlib import Path
+from math import ceil
 from tqdm import trange
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.layers import Masking, Bidirectional, LSTM, Dense
@@ -209,9 +209,9 @@ class DualStudent(Model):
                 checkpoint.restore(checkpoint_path)
 
         # compute batch sizes
-        labeled_batch_size = int(len(x_labeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
+        labeled_batch_size = ceil(len(x_labeled) / (len(x_unlabeled) + len(x_labeled)) * batch_size)
         unlabeled_batch_size = batch_size - labeled_batch_size
-        n_batches = min(int(len(x_unlabeled) / unlabeled_batch_size), int(len(x_labeled) / labeled_batch_size))
+        n_batches = min(ceil(len(x_unlabeled) / unlabeled_batch_size), ceil(len(x_labeled) / labeled_batch_size))
 
         # training loop
         for epoch in trange(n_epochs, desc='epochs'):
@@ -426,7 +426,7 @@ class DualStudent(Model):
         :return: dictionary {metric_name -> value}
         """
         # test batch by batch
-        n_batches = int(len(x) / batch_size) + (1 if len(x) % batch_size > 0 else 0)
+        n_batches = ceil(len(x) / batch_size)
         for i in trange(n_batches, desc='test batches'):
             # select batch
             x_batch = select_batch(x, i, batch_size)
