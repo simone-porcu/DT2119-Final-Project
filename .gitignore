@@ -1,4 +1,7 @@
 /data/timit/
 /data/*.npz
+/models/
+/logs/
+/dualstudent_asr.egg-info/
 /.idea/
 __pycache__/

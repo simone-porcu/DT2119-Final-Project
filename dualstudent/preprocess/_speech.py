@@ -2,6 +2,8 @@ import numpy as np
 import python_speech_features as pss
 from intervaltree import IntervalTree
 from sklearn.preprocessing import StandardScaler
+from operator import itemgetter      # for speaker normalization
+from itertools import groupby        # for speaker normalization
 
 
 def extract_features(samples, sample_rate, win_len, win_shift, win_fun=np.hamming):
@@ -75,16 +77,16 @@ def stack_acoustic_context(features, n):
     return np.array(features)
 
 
-def normalize(train_set, test_set, mode='full'):
+def normalize(train_set, test_set=None, mode='full'):
     """
     Normalizes the dataset according to the specified mode.
 
-    :param train_set: list of utterances, each utterance is a dictionary containing utterance info useful for
+    :param train_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
         normalization, feature vectors, and phone labels.
-    :param test_set: list of utterances, each utterance is a dictionary containing utterance info useful for
+    :param test_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
         normalization, feature vectors, and phone labels.
     :param mode: normalization mode. Support for: 'full', 'speaker', 'utterance'.
-    :return: (train_set, test_set), normalized
+    :return: tuple (train_set, test_set) if test_set is provided, otherwise train_set. The results are normalized.
     """
     if mode == 'full':
         # fit scaler
@@ -95,16 +97,78 @@ def normalize(train_set, test_set, mode='full'):
         # normalize
         for utterance in train_set:
             utterance['features'] = ss.transform(utterance['features'])
-        for utterance in test_set:
-            utterance['features'] = ss.transform(utterance['features'])
+        if test_set is not None:
+            for utterance in test_set:
+                utterance['features'] = ss.transform(utterance['features'])
 
     elif mode == 'speaker':
-        # TODO
-        raise NotImplementedError('Normalization mode ' + mode + ' not yet supported')
+        for index, dataset in enumerate([train_set, test_set]):
+            # split the set according to the speaker
+            set_split = []
+            grouper = itemgetter("speaker_id")
+            for _, v in groupby(dataset, grouper):
+                set_split.append(list(v))  # list of lists of dict, each sublist represent a speaker
+
+            for speaker_set in set_split:
+                # fit scaler
+                x_train = np.concatenate([utterance['features'] for utterance in speaker_set])
+                ss = StandardScaler()
+                ss.fit(x_train)
+
+                # normalize
+                for utterance in speaker_set:
+                    utterance['features'] = ss.transform(utterance['features'])
+
+            # from the normalized list of lists recover a single list containing all the utterances
+            aux = np.array([item for sublist in set_split for item in sublist])
+            if index == 0:
+                train_set = aux
+            else:
+                test_set = aux
+
     elif mode == 'utterance':
-        # TODO
-        raise NotImplementedError('Normalization mode ' + mode + ' not yet supported')
+        for dataset in [train_set, test_set]:
+            for utterance in dataset:
+                # fit scaler
+                x_train = utterance['features']
+                ss = StandardScaler()
+                ss.fit(x_train)
+
+                # normalize
+                utterance['features'] = ss.transform(utterance['features'])
+
     else:
         raise ValueError('Invalid normalization mode')
 
-    return train_set, test_set
+    return train_set if test_set is None else train_set, test_set
+
+
+def unlabel(train_set, percentage, seed=None):
+    """
+    Removes the labels from a percentage of training frames. The percentage is computed at sample-level, not
+    at utterance-level.
+
+    :param train_set: numpy array of utterances, each utterance is a dictionary containing utterance info useful for
+        normalization, feature vectors, and phone labels.
+    :param percentage: percentage of samples to unlabel
+    :return: train_set, with some utterances without labels (i.e. dictionary not containing 'labels')
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    train_set = np.copy(train_set)                  # copy to avoid modifying original
+    total = sum([len(utterance['labels']) for utterance in train_set])
+    total_unlabeled = int(round((total * percentage)))
+    shuffled_idx = np.arange(len(train_set))
+    np.random.shuffle(shuffled_idx)
+
+    n_unlabeled = 0
+    for i in shuffled_idx:
+        idx = shuffled_idx[i]                       # random index of utterance chosen to unlabel
+        n_samples = len(train_set[idx]['labels'])
+        del train_set[idx]['labels']                # unlabel
+        n_unlabeled += n_samples
+        if n_unlabeled >= total_unlabeled:          # percentage reached
+            break
+
+    return train_set

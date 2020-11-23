@@ -1,9 +1,9 @@
 import unittest
-from dualstudent.speech.utils import *
-from dualstudent.utils import get_root_dir
+from dualstudent import get_root_dir
+from dualstudent.io import load_transcription
 
 
-class UtilsTestCase(unittest.TestCase):
+class TranscriptionTestCase(unittest.TestCase):
     def test_load_transcription(self):
         filepath = get_root_dir() / 'data' / 'timit' / 'train' / 'dr1' / 'fcjf0' / 'sa1.phn'
         transcription = load_transcription(filepath)
@@ -15,10 +15,6 @@ class UtilsTestCase(unittest.TestCase):
         self.assertTupleEqual(transcription[25], (31719, 33360, 'sh'))
         self.assertTupleEqual(transcription[30], (36326, 37556, 'axr'))
         self.assertTupleEqual(transcription[36], (44586, 46720, 'h#'))
-
-    def test_get_number_of_frames(self):
-        n_frames = get_number_of_frames(49361, 16000, 0.03, 0.01)
-        self.assertEqual(n_frames, 306)
 
 
 if __name__ == '__main__':

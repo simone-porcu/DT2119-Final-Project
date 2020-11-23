@@ -2,7 +2,7 @@ import numpy as np
 from pysndfile import sndio
 
 
-def load_audio(filepath):
+def load_sphere(filepath):
     """
     Loads the utterance samples from a file.
 

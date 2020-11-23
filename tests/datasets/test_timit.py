@@ -1,6 +1,5 @@
 import unittest
 from dualstudent.datasets.timit import *
-from dualstudent.utils import get_root_dir
 
 
 class TimitTestCase(unittest.TestCase):
@@ -10,7 +9,7 @@ class TimitTestCase(unittest.TestCase):
         self.assertEqual(sum([len(speakers) for speakers in core_test_speakers.values()]), 24)
 
     def test_get_phone_mapping(self):
-        phone_labels, evaluation_mapping = get_phone_mapping()
+        phone_labels, evaluation_mapping, _ = get_phone_mapping()
         self.assertEqual(len(set(phone_labels.keys())), 60)
         self.assertEqual(len(set(phone_labels.values())), 48)
         self.assertEqual(len(set(evaluation_mapping.keys())), 48)
@@ -54,6 +53,32 @@ class TimitTestCase(unittest.TestCase):
                 self.assertEqual(len(utterance['features'].shape), 2)
                 self.assertEqual(len(utterance['labels'].shape), 1)
                 self.assertEqual(utterance['features'].shape[1], 39)
+
+    def test_split_validation(self):
+        dataset_path = get_root_dir() / 'data' / 'timit'
+        train_set, _ = load_data(dataset_path)
+
+        n_utterances_train = [3512, 2120]
+        n_utterances_val = [184, 184]
+        n_speakers_train = [439, 265]
+        n_speakers_val = [23, 23]
+        n_frames_train = [1049763, 629304]
+        n_frames_val = [54912, 53642]
+
+        for i, mode in enumerate(['random', 'unique']):
+            train_set, val_set = split_validation(train_set, mode=mode, seed=1)
+
+            # number of utterances
+            self.assertEqual(len(train_set), n_utterances_train[i])
+            self.assertEqual(len(val_set), n_utterances_val[i])
+
+            # number of speakers
+            self.assertEqual(len({utterance['speaker_id'] for utterance in train_set}), n_speakers_train[i])
+            self.assertEqual(len({utterance['speaker_id'] for utterance in val_set}), n_speakers_val[i])
+
+            # number of frames
+            self.assertEqual(sum([len(utterance['features']) for utterance in train_set]), n_frames_train[i])
+            self.assertEqual(sum([len(utterance['features']) for utterance in val_set]), n_frames_val[i])
 
 
 if __name__ == '__main__':
