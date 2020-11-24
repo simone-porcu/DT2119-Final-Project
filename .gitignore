@@ -4,4 +4,5 @@
 /logs/
 /dualstudent_asr.egg-info/
 /.idea/
+/docs/report.zip
 __pycache__/
