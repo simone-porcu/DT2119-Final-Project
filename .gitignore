@@ -5,4 +5,6 @@
 /dualstudent_asr.egg-info/
 /.idea/
 /docs/report.zip
+/build/
+/dist/
 __pycache__/
