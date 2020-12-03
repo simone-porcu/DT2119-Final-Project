@@ -9,10 +9,10 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     description='Dual Student for Automatic Speech Recognition',
-    author='Franco Ruggeri, Andrea Caraffa, Kevin Dalla Torre Castillo, Simone Porcu',
-    author_email='fruggeri@kth.se, caraffa@kth.se, kevindt@kth.se, porcu@kth.se',
+    author='Simone Porcu, Andrea Caraffa, Kevin Dalla Torre Castillo, Franco Ruggeri',
+    author_email='porcu@kth.se, caraffa@kth.se, kevindt@kth.se, fruggeri@kth.se',
     license='GPL',
     packages=find_packages(include=['dualstudent', 'dualstudent.*']),
     include_package_data=True,
-    url='https://github.com/franco-ruggeri/dt2119-dualstudent-asr'
+    url='https://github.com/simone-porcu/DT2119-Final-Project'
 )
